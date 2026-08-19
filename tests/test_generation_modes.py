@@ -67,6 +67,25 @@ class GenerationModeApiTests(unittest.TestCase):
         with patch.dict(os.environ, LLM_ENV, clear=False):
             cls.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
+    def setUp(self):
+        repository.update_generation_mode(self.profile["id"], "llm")
+        repository.update_audio_generation_mode(self.profile["id"], "local")
+        repository.update_deterministic_global_settings(
+            self.profile["id"],
+            {
+                "version": 1,
+                "target_duration_sec": 600,
+                "speech_rate_wpm": 155,
+                "freshness_hours_max": 48,
+                "max_items_per_category_default": 3,
+                "min_items_per_category_default": 1,
+                "scoring_weights": repository.DETERMINISTIC_SCORING_WEIGHTS,
+                "extractive_rules": repository.DETERMINISTIC_EXTRACTIVE_RULES,
+                "trim_policy": repository.DETERMINISTIC_TRIM_POLICY,
+                "fallback_policy": repository.DETERMINISTIC_FALLBACK_POLICY,
+            },
+        )
+
     def _patch_feed(self):
         published_at = datetime.now(timezone.utc) - timedelta(hours=1)
         return patch.object(
