@@ -314,7 +314,7 @@ def get_or_create_default_profile() -> dict[str, Any]:
     with get_connection() as conn:
         row = conn.execute(
             """
-            SELECT id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                    per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
                    created_at, updated_at
             FROM generation_profiles
@@ -329,9 +329,9 @@ def get_or_create_default_profile() -> dict[str, Any]:
         conn.execute(
             """
             INSERT INTO generation_profiles (
-                id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+                id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                 per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone
-            ) VALUES (?, 'default', 1, 'llm', 10, 48, 28000, 100, '0 8 * * 1,3,5', 'Europe/Paris')
+            ) VALUES (?, 'default', 1, 'llm', 'local', 10, 48, 28000, 100, '0 8 * * 1,3,5', 'Europe/Paris')
             """,
             (profile_id,),
         )
@@ -341,7 +341,7 @@ def get_or_create_default_profile() -> dict[str, Any]:
             _seed_deterministic_category_default(conn, profile_id, category_row[0])
         row = conn.execute(
             """
-            SELECT id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                    per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
                    created_at, updated_at
             FROM generation_profiles WHERE id = ?
@@ -364,7 +364,7 @@ def update_default_profile_duration(duration_target_minutes: int) -> dict[str, A
         )
         row = conn.execute(
             """
-            SELECT id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                    per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
                    created_at, updated_at
             FROM generation_profiles WHERE id = ?
@@ -460,7 +460,7 @@ def update_default_profile_schedule(schedule_cron: str, timezone: str) -> dict[s
         )
         row = conn.execute(
             """
-            SELECT id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                    per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
                    created_at, updated_at
             FROM generation_profiles WHERE id = ?
@@ -484,7 +484,7 @@ def update_generation_mode(profile_id: str, generation_mode: str) -> dict[str, A
             return None
         row = conn.execute(
             """
-            SELECT id, name, enabled, generation_mode, duration_target_minutes, max_item_age_hours,
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
                    per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
                    created_at, updated_at
             FROM generation_profiles WHERE id = ?
@@ -501,6 +501,39 @@ def get_generation_mode(profile_id: str) -> str | None:
             (profile_id,),
         ).fetchone()
     return row[0] if row else None
+
+
+def get_audio_generation_mode(profile_id: str) -> str | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT audio_generation_mode FROM generation_profiles WHERE id = ?",
+            (profile_id,),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def update_audio_generation_mode(profile_id: str, audio_generation_mode: str) -> dict[str, Any] | None:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE generation_profiles
+            SET audio_generation_mode = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (audio_generation_mode, profile_id),
+        )
+        if cursor.rowcount == 0:
+            return None
+        row = conn.execute(
+            """
+            SELECT id, name, enabled, generation_mode, audio_generation_mode, duration_target_minutes, max_item_age_hours,
+                   per_episode_token_cap, monthly_api_budget_eur_cents, schedule_cron, timezone,
+                   created_at, updated_at
+            FROM generation_profiles WHERE id = ?
+            """,
+            (profile_id,),
+        ).fetchone()
+    return row_to_dict(row) if row else None
 
 
 def get_deterministic_global_settings(profile_id: str) -> dict[str, Any] | None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 from sqlite3 import IntegrityError
 
 from .db import ensure_database
@@ -34,6 +34,7 @@ from .repository import (
     update_category,
     update_default_profile_duration,
     update_default_profile_schedule,
+    update_audio_generation_mode,
     update_deterministic_category_setting,
     update_deterministic_global_settings,
     update_generation_mode,
@@ -50,6 +51,7 @@ from .runtime_settings import (
 )
 from .rss_collection import collect_fresh_items
 from .rss_health import check_feed_health
+from .audio_generation import AUDIO_OUTPUT_DIR, AudioGenerationError, generate_local_mp3
 from .script_generation import (
     ScriptGenerationError,
     build_script_prompt,
@@ -165,6 +167,26 @@ def api_update_generation_mode():
 
     global RUNTIME_SETTINGS
     RUNTIME_SETTINGS = next_runtime_settings
+    return jsonify(updated)
+
+
+@app.get("/api/settings/audio-mode")
+def api_get_audio_generation_mode():
+    profile = _current_profile()
+    return jsonify({"audio_generation_mode": profile.get("audio_generation_mode", "local")})
+
+
+@app.put("/api/settings/audio-mode")
+def api_update_audio_generation_mode():
+    payload = request.get_json(silent=True) or {}
+    audio_generation_mode = str(payload.get("audio_generation_mode", "")).strip().lower()
+    if audio_generation_mode not in {"local", "cloud"}:
+        return jsonify({"error": "audio_generation_mode must be local or cloud"}), 400
+
+    profile = _current_profile()
+    updated = update_audio_generation_mode(profile["id"], audio_generation_mode)
+    if not updated:
+        return jsonify({"error": "profile not found"}), 404
     return jsonify(updated)
 
 
@@ -383,6 +405,7 @@ def api_generate_script():
     payload = request.get_json(silent=True) or {}
     profile = get_or_create_default_profile()
     generation_mode = str(profile.get("generation_mode", "llm")).strip().lower() or "llm"
+    audio_generation_mode = str(profile.get("audio_generation_mode", "local")).strip().lower() or "local"
 
     monthly_cap = int(profile["monthly_api_budget_eur_cents"])
     current_spend = get_monthly_spend(profile["id"], current_month_key())
@@ -445,15 +468,39 @@ def api_generate_script():
         usage = generation["usage"]
         estimated_cost = 0
         updated_spend = add_monthly_spend(profile["id"], estimated_cost, monthly_cap)
+        audio_result = {
+            "status": "not_requested",
+            "mode_used": audio_generation_mode,
+        }
+        if audio_generation_mode == "local":
+            try:
+                audio_result = {
+                    "status": "ok",
+                    **generate_local_mp3(generation["script"], job_id),
+                }
+            except AudioGenerationError as error:
+                audio_result = {
+                    "status": "error",
+                    "mode_used": audio_generation_mode,
+                    "error": str(error),
+                }
+        elif audio_generation_mode == "cloud":
+            audio_result = {
+                "status": "error",
+                "mode_used": audio_generation_mode,
+                "error": "cloud audio generation is not configured yet",
+            }
         update_generation_job(
             job_id,
             "succeeded",
             {
                 "mode_used": generation_mode,
+                "audio_mode_used": audio_generation_mode,
                 "usage": usage,
                 "estimated_request_cost_eur_cents": estimated_cost,
                 "spent_eur_cents": updated_spend["spent_eur_cents"],
                 "cap_eur_cents": updated_spend["hard_cap_eur_cents"],
+                "audio": audio_result,
             },
         )
         return jsonify(
@@ -465,6 +512,7 @@ def api_generate_script():
                 "preview": preview,
                 "mode_used": generation_mode,
                 "prompt_truncated": False,
+                "audio": audio_result,
                 "cost": {
                     "estimated_request_cost_eur_cents": estimated_cost,
                     "month_key": updated_spend["month_key"],
@@ -569,15 +617,39 @@ def api_generate_script():
         )
 
     updated_spend = add_monthly_spend(profile["id"], estimated_cost, monthly_cap)
+    audio_result = {
+        "status": "not_requested",
+        "mode_used": audio_generation_mode,
+    }
+    if audio_generation_mode == "local":
+        try:
+            audio_result = {
+                "status": "ok",
+                **generate_local_mp3(generation["script"], job_id),
+            }
+        except AudioGenerationError as error:
+            audio_result = {
+                "status": "error",
+                "mode_used": audio_generation_mode,
+                "error": str(error),
+            }
+    elif audio_generation_mode == "cloud":
+        audio_result = {
+            "status": "error",
+            "mode_used": audio_generation_mode,
+            "error": "cloud audio generation is not configured yet",
+        }
     update_generation_job(
         job_id,
         "succeeded",
         {
             "mode_used": generation_mode,
+            "audio_mode_used": audio_generation_mode,
             "usage": generation["usage"],
             "estimated_request_cost_eur_cents": estimated_cost,
             "spent_eur_cents": updated_spend["spent_eur_cents"],
             "cap_eur_cents": updated_spend["hard_cap_eur_cents"],
+            "audio": audio_result,
         },
     )
     return jsonify(
@@ -589,6 +661,7 @@ def api_generate_script():
             "preview": preview,
             "mode_used": generation_mode,
             "prompt_truncated": prompt_truncated,
+            "audio": audio_result,
             "cost": {
                 "estimated_request_cost_eur_cents": estimated_cost,
                 "month_key": updated_spend["month_key"],
@@ -648,6 +721,14 @@ def api_update_schedule_settings():
 @app.get("/api/jobs")
 def api_list_jobs():
     return jsonify(list_recent_generation_jobs(limit=20))
+
+
+@app.get("/api/generation-jobs/<job_id>/audio")
+def api_download_generation_audio(job_id: str):
+    mp3_path = AUDIO_OUTPUT_DIR / f"{job_id}.mp3"
+    if not mp3_path.exists():
+        return jsonify({"error": "audio file not found"}), 404
+    return send_file(mp3_path, as_attachment=True, download_name=f"{job_id}.mp3", mimetype="audio/mpeg")
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS generation_profiles (
   name TEXT NOT NULL UNIQUE,
   enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   generation_mode TEXT NOT NULL DEFAULT 'llm' CHECK (generation_mode IN ('llm', 'deterministic')),
+  audio_generation_mode TEXT NOT NULL DEFAULT 'local' CHECK (audio_generation_mode IN ('local', 'cloud')),
   duration_target_minutes INTEGER NOT NULL DEFAULT 10 CHECK (duration_target_minutes > 0),
   max_item_age_hours INTEGER NOT NULL DEFAULT 48 CHECK (max_item_age_hours > 0),
   per_episode_token_cap INTEGER NOT NULL DEFAULT 28000 CHECK (per_episode_token_cap > 0),

@@ -21,9 +21,15 @@
             <option value="deterministic">Sans LLM</option>
           </select>
           <button id="generation-mode-save" type="button">Sauver mode</button>
+          <select id="audio-mode">
+            <option value="local">Audio local (Piper)</option>
+            <option value="cloud">Audio cloud</option>
+          </select>
+          <button id="audio-mode-save" type="button">Sauver mode audio</button>
           <button id="deterministic-refresh" type="button">Rafraichir matrice</button>
         </div>
         <p id="generation-mode-hint" class="hint"></p>
+        <p id="audio-mode-hint" class="hint"></p>
       </section>
 
       <section class="panel panel-wide" id="deterministic-panel">
@@ -64,6 +70,11 @@
           <button id="copy-script" type="button">Copier le script</button>
         </div>
         <pre id="script-output" class="preview">Aucun script genere</pre>
+        <h3>Audio genere</h3>
+        <div class="inline-form">
+          <a id="audio-download" class="download-link" href="#" hidden>Telecharger le MP3</a>
+        </div>
+        <p id="audio-status" class="hint">Aucun audio genere</p>
       </section>
 
       <section class="panel panel-wide">

@@ -3,6 +3,7 @@ const state = {
   sources: [],
   mappings: [],
   generationMode: "llm",
+  audioMode: "local",
   deterministic: {
     global: null,
     categories: [],
@@ -143,6 +144,16 @@ function renderGenerationMode() {
       : "Mode LLM actif: la generation utilise le provider configure et les garde-fous cout/tokens.";
 }
 
+function renderAudioMode() {
+  const select = document.getElementById("audio-mode");
+  const hint = document.getElementById("audio-mode-hint");
+  select.value = state.audioMode || "local";
+  hint.textContent =
+    state.audioMode === "cloud"
+      ? "Mode audio cloud actif: le MP3 sera delegue a un provider externe quand il sera configure."
+      : "Mode audio local actif: Piper est utilise pour produire le MP3 telechargeable.";
+}
+
 function renderDeterministicSettings() {
   const globalTextarea = document.getElementById("deterministic-global-json");
   const container = document.getElementById("deterministic-category-settings");
@@ -179,19 +190,21 @@ function renderDeterministicSettings() {
 }
 
 async function reloadAll() {
-  const [categories, sources, mappings, settings, schedule, mode, deterministic] = await Promise.all([
+  const [categories, sources, mappings, settings, schedule, mode, audioMode, deterministic] = await Promise.all([
     api("/api/categories"),
     api("/api/rss-sources"),
     api("/api/mappings"),
     api("/api/settings/duration-target"),
     api("/api/settings/schedule"),
     api("/api/settings/mode"),
+    api("/api/settings/audio-mode"),
     api("/api/settings/deterministic"),
   ]);
   state.categories = categories;
   state.sources = sources;
   state.mappings = mappings;
   state.generationMode = mode.generation_mode;
+  state.audioMode = audioMode.audio_generation_mode;
   state.deterministic = deterministic;
   state.settings = {
     ...state.settings,
@@ -202,6 +215,7 @@ async function reloadAll() {
   renderSources();
   renderMappings();
   renderGenerationMode();
+  renderAudioMode();
   renderDeterministicSettings();
   document.getElementById("duration-target").value = state.settings.duration_target_minutes;
   document.getElementById("schedule-cron").value = state.settings.schedule_cron;
@@ -217,8 +231,24 @@ function renderPreview(preview) {
 
 function renderGeneratedScript(payload) {
   const output = document.getElementById("script-output");
+  const audioStatus = document.getElementById("audio-status");
+  const audioDownload = document.getElementById("audio-download");
   const header = `Mode: ${payload.mode_used || "n/a"} | Job: ${payload.job_id || "n/a"}`;
   output.textContent = `${header}\n\n${payload.script || "(script vide)"}`;
+
+  const audio = payload.audio || {};
+  if (audio.status === "ok" && audio.download_url) {
+    audioStatus.textContent = `Audio genere en mode ${audio.mode_used || "local"}.`;
+    audioDownload.href = audio.download_url;
+    audioDownload.download = audio.file_name || `${payload.job_id || "audio"}.mp3`;
+    audioDownload.hidden = false;
+  } else if (audio.status === "error") {
+    audioStatus.textContent = `Audio indisponible: ${audio.error || "erreur inconnue"}`;
+    audioDownload.hidden = true;
+  } else {
+    audioStatus.textContent = "Aucun audio genere";
+    audioDownload.hidden = true;
+  }
 }
 
 function generatedScriptTextOnly() {
@@ -321,6 +351,20 @@ document.getElementById("generation-mode-save").addEventListener("click", async 
     renderGenerationMode();
     await reloadOps();
     setStatus(`Mode mis a jour: ${updated.generation_mode}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("audio-mode-save").addEventListener("click", async () => {
+  try {
+    const updated = await api("/api/settings/audio-mode", {
+      method: "PUT",
+      body: JSON.stringify({ audio_generation_mode: document.getElementById("audio-mode").value }),
+    });
+    state.audioMode = updated.audio_generation_mode;
+    renderAudioMode();
+    setStatus(`Mode audio mis a jour: ${updated.audio_generation_mode}`);
   } catch (error) {
     setStatus(error.message, true);
   }

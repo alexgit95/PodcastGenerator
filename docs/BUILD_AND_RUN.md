@@ -71,11 +71,19 @@ Utilisation du mode generation dans l'interface:
 3. En mode `Sans LLM`, ouvrir `Matrice deterministe` pour ajuster la configuration globale et les overrides par categorie.
 4. Chaque nouvelle categorie recoit un override deterministe par defaut, modifiable ensuite dans sa carte.
 
+Utilisation du mode audio dans l'interface:
+
+1. Ouvrir le panneau `Mode generation` dans l'administration.
+2. Choisir `Audio local (Piper)` ou `Audio cloud` puis sauver le mode audio.
+3. En mode local, le MP3 est genere avec Piper puis un lien de telechargement apparait sous le script.
+4. Le telechargement pointe vers le meme ecran que la visualisation du script, pour rester dans un seul flux operateur.
+
 Comportement important:
 
 - En mode `Sans LLM`, la generation ne consomme pas de cle API provider.
 - En mode `LLM`, le provider selectionne reste obligatoire et les garde-fous provider/tokens s'appliquent.
 - Le changement de mode prend effet apres sauvegarde dans l'UI, sans redeploiement.
+- En mode audio local, l'image embarque Piper, ffmpeg et un modele francais: aucune variable audio additionnelle n'est a renseigner sur la machine hote.
 
 Exemple 1: initialisation provider OpenAI
 
@@ -223,9 +231,45 @@ volumes:
 Notes:
 
 - Renseigner `DOCKERHUB_USERNAME`, `PODCAST_LLM_API_KEY`, `PODCAST_LLM_PROVIDER`, `PODCAST_LLM_API_URL`, `PODCAST_LLM_MODEL`, `PODCAST_LLM_INPUT_CENTS_PER_MILLION`, `PODCAST_LLM_OUTPUT_CENTS_PER_MILLION` dans les variables Portainer.
+- Aucun parametre Piper/ffmpeg n'est necessaire dans le cas standard, car ils sont deja inclus dans l'image.
 - Le volume `podcast_data` persiste la base SQLite (`/app/data/podcast.db`).
 - Si tu veux une version specifique, remplace `latest` par un tag git publie par la CI.
 - Pour changer de provider, modifie les variables provider puis redeploie la stack Portainer.
+
+Exemple Portainer pour audio local avec Piper:
+
+```yaml
+version: "3.8"
+
+services:
+  podcast-generator:
+    image: ${DOCKERHUB_USERNAME}/podcast-generator:latest
+    container_name: podcast-generator
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PODCAST_LLM_API_KEY: "${PODCAST_LLM_API_KEY}"
+      PODCAST_LLM_PROVIDER: "openai"
+      PODCAST_LLM_API_URL: "https://api.openai.com/v1/chat/completions"
+      PODCAST_LLM_MODEL: "gpt-4o-mini"
+      PODCAST_LLM_MAX_RETRIES: "1"
+      PODCAST_LLM_MAX_PROMPT_CHARS: "20000"
+      PODCAST_LLM_INPUT_CENTS_PER_MILLION: "15"
+      PODCAST_LLM_OUTPUT_CENTS_PER_MILLION: "60"
+    volumes:
+      - podcast_data:/app/data
+
+volumes:
+  podcast_data:
+    driver: local
+```
+
+Dans cet exemple:
+
+- `piper`, `ffmpeg` et le modele francais sont deja inclus dans l'image
+- le volume `podcast_data` ne sert qu'a la base SQLite et aux sorties generees
+- si tu veux changer de voix Piper, il faudra reconstruire l'image avec un autre modele
 
 Jeux de variables Portainer (exemples):
 
@@ -254,5 +298,6 @@ OpenRouter:
 - Erreurs `Invalid integer` ou `must be >= 0`/`must be > 0`: corriger les variables `PODCAST_LLM_MAX_RETRIES`, `PODCAST_LLM_MAX_PROMPT_CHARS`, `PODCAST_LLM_INPUT_CENTS_PER_MILLION`, `PODCAST_LLM_OUTPUT_CENTS_PER_MILLION`
 - Changement de provider non pris en compte: redeployer/redemarrer apres modification des variables Portainer
 - Pas de contenu en preview: verifier mappings categorie->flux et sources actives
+- Audio local indisponible: reconstruire/redeloyer l'image pour verifier que Piper, ffmpeg et le modele francais ont bien ete embarques au build
 - Budget bloque: consulter endpoint `/api/budget-status`
 - Python introuvable: installer Python et relancer l'environnement virtuel

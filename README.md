@@ -7,6 +7,7 @@ Application auto-hebergee de generation de podcasts en francais, orientee cout m
 - filtrage de fraicheur 48h
 - duree cible configurable
 - garde-fous budget/tokens pour API economique
+- mode audio local ou cloud, avec sortie MP3 telechargeable depuis la vue du script
 
 ## Documentation
 

@@ -29,6 +29,17 @@ def _ensure_schema_migrations(connection: sqlite3.Connection) -> None:
     if not _table_has_column(connection, "generation_profiles", "generation_mode"):
         raise RuntimeError("Failed to create generation_mode column")
 
+    if not _table_has_column(connection, "generation_profiles", "audio_generation_mode"):
+        connection.execute(
+            "ALTER TABLE generation_profiles ADD COLUMN audio_generation_mode TEXT NOT NULL DEFAULT 'local'"
+        )
+    if not _table_has_column(connection, "generation_profiles", "audio_generation_mode"):
+        raise RuntimeError("Failed to create audio_generation_mode column")
+
+    connection.execute(
+        "UPDATE generation_profiles SET audio_generation_mode = 'local' WHERE audio_generation_mode IS NULL OR audio_generation_mode = ''"
+    )
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS deterministic_settings_global (
