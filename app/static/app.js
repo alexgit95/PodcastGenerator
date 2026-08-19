@@ -639,20 +639,20 @@ document.getElementById("deterministic-global-save").addEventListener("click", a
       min_items_per_category_default: readRequiredInt("det-min-items"),
       max_items_per_category_default: readRequiredInt("det-max-items"),
       scoring_weights: {
-        ...baseScoring,
         ...scoringAdvanced,
+        ...baseScoring,
       },
       extractive_rules: {
-        ...baseExtractive,
         ...extractiveAdvanced,
+        ...baseExtractive,
       },
       trim_policy: {
-        ...baseTrimPolicy,
         ...trimAdvanced,
+        ...baseTrimPolicy,
       },
       fallback_policy: {
-        ...baseFallbackPolicy,
         ...fallbackAdvanced,
+        ...baseFallbackPolicy,
       },
     };
 
