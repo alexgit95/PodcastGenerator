@@ -113,10 +113,10 @@ def _align_brief_text_length(
     safe_target_words = max(18, min(180, int(target_words)))
     aligned = text.strip()
     fillers = [
-        "Concretement, ce sujet influence deja les usages sur le terrain et les priorites des equipes.",
-        "A court terme, l'enjeu principal reste la mise en application et le suivi des effets observables.",
-        f"Dans la rubrique {category_name}, {title} merite un suivi car les signaux evoluent rapidement.",
-        f"La source {source_title} souligne aussi des impacts pratiques a surveiller dans les prochains jours.",
+        "Le point a surveiller est l'effet concret sur les acteurs concernes dans les prochains jours.",
+        "A court terme, l'enjeu est de verifier si cette annonce se traduit en decisions ou en resultats mesurables.",
+        f"Dans la rubrique {category_name}, ce sujet ouvre un suivi utile pour confirmer la tendance observee.",
+        "La prochaine etape sera de confronter cette information aux prochaines publications de reference.",
     ]
 
     filler_index = 0
@@ -124,6 +124,13 @@ def _align_brief_text_length(
         aligned = f"{aligned} {fillers[filler_index % len(fillers)]}".strip()
         filler_index += 1
     return aligned
+
+
+def _pick_variant(variants: list[str], seed: str) -> str:
+    if not variants:
+        return ""
+    checksum = sum(ord(char) for char in (seed or ""))
+    return variants[checksum % len(variants)]
 
 
 def generate_script_with_deterministic_mode(
@@ -150,7 +157,14 @@ def generate_script_with_deterministic_mode(
         settings = category_settings_map.get(category_id, {})
         templates = settings.get("templates") or {}
         lead_in_template = templates.get("leadIn") or templates.get("intro") or f"En {{category_name}}, premier point: {{title}}."
-        transition_out_template = templates.get("transitionOut") or templates.get("transition") or "On passe au sujet suivant."
+        default_transition_templates = [
+            "On passe au sujet suivant.",
+            "On continue avec le point suivant.",
+            "Autre information a retenir.",
+            "Passons maintenant a la suite.",
+            "On enchaine avec le prochain sujet.",
+        ]
+        transition_out_template = templates.get("transitionOut") or templates.get("transition")
         briefs = category_section.get("briefs", [])
         effective_max_items = settings.get("max_items") or global_max_items
         effective_max_items = max(global_min_items, int(effective_max_items))
@@ -168,8 +182,26 @@ def generate_script_with_deterministic_mode(
         )
 
         for brief in briefs:
+            default_impact_templates = [
+                "Fait du jour: {title}.",
+                "A retenir aujourd'hui: {title}.",
+                "Ce que dit l'actualite: {title}.",
+                "Point de situation: {title}.",
+                "En clair, l'information cle est la suivante: {title}.",
+                "L'element marquant de cette breve: {title}.",
+                "Lecture rapide: {title}.",
+                "Sur ce sujet, le signal principal est: {title}.",
+                "Dans cette sequence, on note: {title}.",
+                "Ce qu'il faut suivre maintenant: {title}.",
+                "A ce stade, le point de repere est: {title}.",
+                "Cette breve met en avant: {title}.",
+            ]
+            default_impact_template = _pick_variant(
+                default_impact_templates,
+                f"{brief.get('item_key', '')}:{category_id}:{brief.get('title', '')}",
+            )
             impact_line = _render_template(
-                templates.get("impact") or "Point cle: {title} (source: {source_title}).",
+                templates.get("impact") or default_impact_template,
                 {
                     "category_name": category_name,
                     "title": brief.get("title", ""),
@@ -188,9 +220,13 @@ def generate_script_with_deterministic_mode(
             lines.append(impact_line)
 
         if index < len(sections.get("category_sections", [])) - 1:
+            resolved_transition_template = transition_out_template or _pick_variant(
+                default_transition_templates,
+                f"{category_id}:{index}",
+            )
             lines.append(
                 _render_template(
-                    transition_out_template,
+                    resolved_transition_template,
                     {"category_name": category_name},
                 )
             )
