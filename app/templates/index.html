@@ -14,6 +14,29 @@
 
     <main class="grid">
       <section class="panel panel-wide">
+        <h2>Mode generation</h2>
+        <div class="inline-form">
+          <select id="generation-mode">
+            <option value="llm">LLM</option>
+            <option value="deterministic">Sans LLM</option>
+          </select>
+          <button id="generation-mode-save" type="button">Sauver mode</button>
+          <button id="deterministic-refresh" type="button">Rafraichir matrice</button>
+        </div>
+        <p id="generation-mode-hint" class="hint"></p>
+      </section>
+
+      <section class="panel panel-wide" id="deterministic-panel">
+        <h2>Matrice deterministe</h2>
+        <div class="stack">
+          <label for="deterministic-global-json">Configuration globale</label>
+          <textarea id="deterministic-global-json" rows="10" spellcheck="false"></textarea>
+          <button id="deterministic-global-save" type="button">Sauver configuration globale</button>
+        </div>
+        <div id="deterministic-category-settings" class="deterministic-grid"></div>
+      </section>
+
+      <section class="panel panel-wide">
         <h2>Planification</h2>
         <div class="inline-form">
           <input type="text" id="schedule-cron" placeholder="0 8 * * 1,3,5" />

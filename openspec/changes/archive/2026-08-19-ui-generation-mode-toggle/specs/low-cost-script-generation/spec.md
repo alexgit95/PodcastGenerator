@@ -1,8 +1,5 @@
-# low-cost-script-generation Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change podcast-generator-low-cost-api. Update Purpose after archive.
-## Requirements
 ### Requirement: Generate French scripts with economical API tier
 The system MUST generate episode scripts in French using the configured active generation mode, while keeping LLM generation available through exactly one configured provider at runtime.
 
@@ -59,15 +56,3 @@ The system MUST enforce a configurable monthly API spending cap and MUST apply i
 #### Scenario: Budget exhausted
 - **WHEN** monthly spend reaches or exceeds configured cap
 - **THEN** the system blocks new generation jobs and exposes budget status in the UI
-
-### Requirement: Keep default generation cadence at three episodes per week
-The system MUST support scheduling and set a default cadence of three episodes per week.
-
-#### Scenario: Default schedule
-- **WHEN** a new generation profile is created without custom cadence
-- **THEN** the system schedules three episodes per week by default
-
-#### Scenario: Custom schedule
-- **WHEN** an operator changes schedule settings
-- **THEN** the system uses the custom cadence for future jobs
-

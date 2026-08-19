@@ -64,6 +64,19 @@ Diagnostics de configuration (fail-fast au startup):
 - Modele manquant
 - Valeurs invalides pour retries/prompt/pricing
 
+Utilisation du mode generation dans l'interface:
+
+1. Ouvrir le panneau `Mode generation` dans l'administration.
+2. Choisir `LLM` ou `Sans LLM` puis sauver le mode.
+3. En mode `Sans LLM`, ouvrir `Matrice deterministe` pour ajuster la configuration globale et les overrides par categorie.
+4. Chaque nouvelle categorie recoit un override deterministe par defaut, modifiable ensuite dans sa carte.
+
+Comportement important:
+
+- En mode `Sans LLM`, la generation ne consomme pas de cle API provider.
+- En mode `LLM`, le provider selectionne reste obligatoire et les garde-fous provider/tokens s'appliquent.
+- Le changement de mode prend effet apres sauvegarde dans l'UI, sans redeploiement.
+
 Exemple 1: initialisation provider OpenAI
 
 ```bash

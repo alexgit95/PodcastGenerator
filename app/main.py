@@ -20,6 +20,9 @@ from .repository import (
     delete_category,
     delete_mapping,
     delete_source,
+    get_deterministic_category_setting,
+    get_deterministic_global_settings,
+    list_deterministic_category_settings,
     get_monthly_spend,
     get_or_create_default_profile,
     get_source,
@@ -31,11 +34,20 @@ from .repository import (
     update_category,
     update_default_profile_duration,
     update_default_profile_schedule,
+    update_deterministic_category_setting,
+    update_deterministic_global_settings,
+    update_generation_mode,
     update_generation_job,
     update_source,
     update_source_health,
 )
-from .runtime_settings import RuntimeSettingsError, load_runtime_settings, validate_runtime_settings
+from .runtime_settings import (
+    RuntimeSettingsError,
+    load_runtime_settings,
+    validate_deterministic_category_settings,
+    validate_deterministic_global_settings,
+    validate_runtime_settings,
+)
 from .rss_collection import collect_fresh_items
 from .rss_health import check_feed_health
 from .script_generation import (
@@ -43,6 +55,7 @@ from .script_generation import (
     build_script_prompt,
     estimate_cost_cents,
     estimate_tokens_from_text,
+    generate_script_with_deterministic_mode,
     generate_script_with_single_provider,
 )
 from .scheduling import ScheduleParseError, episodes_per_week_hint, next_run_times
@@ -50,10 +63,18 @@ from .scheduling import ScheduleParseError, episodes_per_week_hint, next_run_tim
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 ensure_database()
+DEFAULT_PROFILE = get_or_create_default_profile()
 try:
-    RUNTIME_SETTINGS = validate_runtime_settings(load_runtime_settings())
+    RUNTIME_SETTINGS = validate_runtime_settings(
+        load_runtime_settings(),
+        generation_mode=DEFAULT_PROFILE.get("generation_mode", "llm"),
+    )
 except RuntimeSettingsError as error:
     raise RuntimeError(f"Invalid LLM provider configuration: {error}") from error
+
+
+def _current_profile() -> dict:
+    return get_or_create_default_profile()
 
 
 def _compose_preview_from_payload(payload: dict, profile: dict):
@@ -114,6 +135,37 @@ def api_create_category():
     except (IntegrityError, ValueError) as error:
         return jsonify({"error": str(error)}), 400
     return jsonify(category), 201
+
+
+@app.get("/api/settings/mode")
+def api_get_generation_mode():
+    profile = _current_profile()
+    return jsonify({"generation_mode": profile.get("generation_mode", "llm")})
+
+
+@app.put("/api/settings/mode")
+def api_update_generation_mode():
+    payload = request.get_json(silent=True) or {}
+    generation_mode = str(payload.get("generation_mode", "")).strip().lower()
+    if generation_mode not in {"llm", "deterministic"}:
+        return jsonify({"error": "generation_mode must be llm or deterministic"}), 400
+
+    try:
+        next_runtime_settings = validate_runtime_settings(
+            load_runtime_settings(),
+            generation_mode=generation_mode,
+        )
+    except RuntimeSettingsError as error:
+        return jsonify({"error": str(error)}), 400
+
+    profile = _current_profile()
+    updated = update_generation_mode(profile["id"], generation_mode)
+    if not updated:
+        return jsonify({"error": "profile not found"}), 404
+
+    global RUNTIME_SETTINGS
+    RUNTIME_SETTINGS = next_runtime_settings
+    return jsonify(updated)
 
 
 @app.put("/api/categories/<category_id>")
@@ -254,6 +306,50 @@ def api_update_duration_target():
     )
 
 
+@app.get("/api/settings/deterministic")
+def api_get_deterministic_settings():
+    profile = _current_profile()
+    global_settings = get_deterministic_global_settings(profile["id"])
+    category_settings = list_deterministic_category_settings(profile["id"])
+    return jsonify(
+        {
+            "generation_mode": profile.get("generation_mode", "llm"),
+            "global": global_settings,
+            "categories": category_settings,
+        }
+    )
+
+
+@app.put("/api/settings/deterministic/global")
+def api_update_deterministic_global_settings():
+    payload = request.get_json(silent=True) or {}
+    try:
+        validated = validate_deterministic_global_settings(payload)
+    except RuntimeSettingsError as error:
+        return jsonify({"error": str(error)}), 400
+
+    profile = _current_profile()
+    updated = update_deterministic_global_settings(profile["id"], validated)
+    if not updated:
+        return jsonify({"error": "profile not found"}), 404
+    return jsonify(updated)
+
+
+@app.put("/api/settings/deterministic/categories/<category_id>")
+def api_update_deterministic_category_settings(category_id: str):
+    payload = request.get_json(silent=True) or {}
+    try:
+        validated = validate_deterministic_category_settings(payload)
+    except RuntimeSettingsError as error:
+        return jsonify({"error": str(error)}), 400
+
+    profile = _current_profile()
+    updated = update_deterministic_category_setting(profile["id"], category_id, validated)
+    if not updated:
+        return jsonify({"error": "category not found"}), 404
+    return jsonify(updated)
+
+
 @app.post("/api/compose/preview")
 def api_compose_preview():
     payload = request.get_json(silent=True) or {}
@@ -286,6 +382,7 @@ def api_budget_status():
 def api_generate_script():
     payload = request.get_json(silent=True) or {}
     profile = get_or_create_default_profile()
+    generation_mode = str(profile.get("generation_mode", "llm")).strip().lower() or "llm"
 
     monthly_cap = int(profile["monthly_api_budget_eur_cents"])
     current_spend = get_monthly_spend(profile["id"], current_month_key())
@@ -318,6 +415,65 @@ def api_generate_script():
     if error_response:
         return error_response
 
+    per_episode_cap = int(profile["per_episode_token_cap"])
+
+    if generation_mode == "deterministic":
+        deterministic_global_settings = get_deterministic_global_settings(profile["id"])
+        deterministic_category_settings = list_deterministic_category_settings(profile["id"])
+        job_id = create_generation_job(
+            profile["id"],
+            "script_generation",
+            "running",
+            {
+                "duration_target_minutes": preview.get("duration_target_minutes"),
+                "mode_used": generation_mode,
+                "prompt_truncated": False,
+            },
+        )
+
+        try:
+            generation = generate_script_with_deterministic_mode(
+                preview=preview,
+                deterministic_global_settings=deterministic_global_settings or {},
+                deterministic_category_settings=deterministic_category_settings,
+                per_episode_token_cap=per_episode_cap,
+            )
+        except ScriptGenerationError as error:
+            update_generation_job(job_id, "failed", {"error": str(error), "mode_used": generation_mode})
+            return jsonify({"status": "generation_error", "error": str(error)}), 502
+
+        usage = generation["usage"]
+        estimated_cost = 0
+        updated_spend = add_monthly_spend(profile["id"], estimated_cost, monthly_cap)
+        update_generation_job(
+            job_id,
+            "succeeded",
+            {
+                "mode_used": generation_mode,
+                "usage": usage,
+                "estimated_request_cost_eur_cents": estimated_cost,
+                "spent_eur_cents": updated_spend["spent_eur_cents"],
+                "cap_eur_cents": updated_spend["hard_cap_eur_cents"],
+            },
+        )
+        return jsonify(
+            {
+                "status": "ok",
+                "job_id": job_id,
+                "script": generation["script"],
+                "usage": usage,
+                "preview": preview,
+                "mode_used": generation_mode,
+                "prompt_truncated": False,
+                "cost": {
+                    "estimated_request_cost_eur_cents": estimated_cost,
+                    "month_key": updated_spend["month_key"],
+                    "spent_eur_cents": updated_spend["spent_eur_cents"],
+                    "cap_eur_cents": updated_spend["hard_cap_eur_cents"],
+                },
+            }
+        )
+
     prompt_text = build_script_prompt(preview)
     max_prompt_chars = int(RUNTIME_SETTINGS["max_prompt_chars"])
     prompt_truncated = False
@@ -325,7 +481,6 @@ def api_generate_script():
         prompt_text = prompt_text[:max_prompt_chars]
         prompt_truncated = True
 
-    per_episode_cap = int(profile["per_episode_token_cap"])
     estimated_prompt_tokens = estimate_tokens_from_text(prompt_text)
     if is_prompt_cap_exceeded(estimated_prompt_tokens, per_episode_cap):
         blocked_job = create_generation_job(
@@ -336,6 +491,7 @@ def api_generate_script():
                 "reason": "prompt_tokens_exceed_cap",
                 "estimated_prompt_tokens": estimated_prompt_tokens,
                 "per_episode_token_cap": per_episode_cap,
+                "mode_used": generation_mode,
             },
         )
         return (
@@ -346,6 +502,7 @@ def api_generate_script():
                     "reason": "prompt_tokens_exceed_cap",
                     "estimated_prompt_tokens": estimated_prompt_tokens,
                     "per_episode_token_cap": per_episode_cap,
+                    "mode_used": generation_mode,
                 }
             ),
             409,
@@ -359,6 +516,7 @@ def api_generate_script():
             "estimated_prompt_tokens": estimated_prompt_tokens,
             "duration_target_minutes": preview.get("duration_target_minutes"),
             "prompt_truncated": prompt_truncated,
+            "mode_used": generation_mode,
         },
     )
 
@@ -374,7 +532,7 @@ def api_generate_script():
             per_episode_token_cap=per_episode_cap,
         )
     except ScriptGenerationError as error:
-        update_generation_job(job_id, "failed", {"error": str(error)})
+        update_generation_job(job_id, "failed", {"error": str(error), "mode_used": generation_mode})
         return jsonify({"status": "generation_error", "error": str(error)}), 502
 
     usage = generation["usage"]
@@ -415,6 +573,7 @@ def api_generate_script():
         job_id,
         "succeeded",
         {
+            "mode_used": generation_mode,
             "usage": generation["usage"],
             "estimated_request_cost_eur_cents": estimated_cost,
             "spent_eur_cents": updated_spend["spent_eur_cents"],
@@ -428,6 +587,7 @@ def api_generate_script():
             "script": generation["script"],
             "usage": usage,
             "preview": preview,
+            "mode_used": generation_mode,
             "prompt_truncated": prompt_truncated,
             "cost": {
                 "estimated_request_cost_eur_cents": estimated_cost,

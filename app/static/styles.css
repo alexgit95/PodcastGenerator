@@ -84,11 +84,18 @@ main.grid {
 
 input,
 select,
+textarea,
 button {
   border-radius: 8px;
   border: 1px solid var(--line);
   padding: 0.5rem 0.6rem;
   font: inherit;
+}
+
+textarea {
+  width: 100%;
+  min-height: 9rem;
+  resize: vertical;
 }
 
 button {
@@ -124,6 +131,34 @@ ul {
 .actions button:last-child {
   background: var(--danger);
   border-color: var(--danger);
+}
+
+.deterministic-grid {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.deterministic-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #fbfdf8;
+}
+
+.deterministic-card h3 {
+  margin: 0 0 0.5rem;
+}
+
+.deterministic-card label {
+  display: block;
+  margin: 0.4rem 0 0.2rem;
+  color: var(--muted);
+}
+
+.deterministic-card .inline-form {
+  margin-bottom: 0.5rem;
 }
 
 #status {

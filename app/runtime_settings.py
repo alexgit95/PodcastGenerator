@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from typing import Any
 
@@ -166,7 +167,42 @@ def _parse_non_negative_int(value: Any, env_name: str) -> int:
     return parsed
 
 
-def validate_runtime_settings(settings: dict[str, Any]) -> dict[str, Any]:
+def _parse_json_object(value: Any, env_name: str) -> dict[str, Any]:
+    if value is None:
+        raise RuntimeSettingsError(f"Missing value for {env_name}")
+    if isinstance(value, dict):
+        return value
+    text = str(value).strip()
+    if not text:
+        raise RuntimeSettingsError(f"Missing value for {env_name}")
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise RuntimeSettingsError(f"Invalid JSON for {env_name}") from error
+    if not isinstance(parsed, dict):
+        raise RuntimeSettingsError(f"{env_name} must be a JSON object")
+    return parsed
+
+
+def validate_runtime_settings(settings: dict[str, Any], *, generation_mode: str = "llm") -> dict[str, Any]:
+    normalized_mode = str(generation_mode).strip().lower() or "llm"
+    if normalized_mode not in {"llm", "deterministic"}:
+        raise RuntimeSettingsError(f"Unsupported generation mode '{generation_mode}'")
+
+    settings["generation_mode"] = normalized_mode
+
+    if normalized_mode == "deterministic":
+        settings["api_provider"] = ""
+        settings["provider_adapter"] = ""
+        settings["api_url"] = ""
+        settings["api_key"] = ""
+        settings["api_model"] = ""
+        settings["max_retries"] = 0
+        settings["max_prompt_chars"] = _parse_positive_int(settings.get("max_prompt_chars"), "PODCAST_LLM_MAX_PROMPT_CHARS") if str(settings.get("max_prompt_chars", "")).strip() else 20000
+        settings["input_cents_per_million"] = _parse_non_negative_int(settings.get("input_cents_per_million"), "PODCAST_LLM_INPUT_CENTS_PER_MILLION") if str(settings.get("input_cents_per_million", "")).strip() else 0
+        settings["output_cents_per_million"] = _parse_non_negative_int(settings.get("output_cents_per_million"), "PODCAST_LLM_OUTPUT_CENTS_PER_MILLION") if str(settings.get("output_cents_per_million", "")).strip() else 0
+        return settings
+
     provider = str(settings.get("api_provider", "")).strip().lower()
     if not provider:
         raise RuntimeSettingsError(
@@ -212,3 +248,47 @@ def validate_runtime_settings(settings: dict[str, Any]) -> dict[str, Any]:
     settings["input_cents_per_million"] = input_cents_per_million
     settings["output_cents_per_million"] = output_cents_per_million
     return settings
+
+
+def validate_deterministic_global_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    validated = {
+        "version": _parse_positive_int(settings.get("version", 1), "DETERMINISTIC_VERSION"),
+        "target_duration_sec": _parse_positive_int(settings.get("target_duration_sec", 600), "DETERMINISTIC_TARGET_DURATION_SEC"),
+        "speech_rate_wpm": _parse_positive_int(settings.get("speech_rate_wpm", 155), "DETERMINISTIC_SPEECH_RATE_WPM"),
+        "freshness_hours_max": _parse_positive_int(settings.get("freshness_hours_max", 48), "DETERMINISTIC_FRESHNESS_HOURS_MAX"),
+        "max_items_per_category_default": _parse_positive_int(settings.get("max_items_per_category_default", 3), "DETERMINISTIC_MAX_ITEMS_PER_CATEGORY_DEFAULT"),
+        "min_items_per_category_default": _parse_positive_int(settings.get("min_items_per_category_default", 1), "DETERMINISTIC_MIN_ITEMS_PER_CATEGORY_DEFAULT"),
+        "scoring_weights": _parse_json_object(settings.get("scoring_weights", {}), "DETERMINISTIC_SCORING_WEIGHTS"),
+        "extractive_rules": _parse_json_object(settings.get("extractive_rules", {}), "DETERMINISTIC_EXTRACTIVE_RULES"),
+        "trim_policy": _parse_json_object(settings.get("trim_policy", {}), "DETERMINISTIC_TRIM_POLICY"),
+        "fallback_policy": _parse_json_object(settings.get("fallback_policy", {}), "DETERMINISTIC_FALLBACK_POLICY"),
+    }
+
+    if not (120 <= validated["target_duration_sec"] <= 3600):
+        raise RuntimeSettingsError("DETERMINISTIC_TARGET_DURATION_SEC must be between 120 and 3600")
+    if not (100 <= validated["speech_rate_wpm"] <= 220):
+        raise RuntimeSettingsError("DETERMINISTIC_SPEECH_RATE_WPM must be between 100 and 220")
+    if not (1 <= validated["max_items_per_category_default"] <= 10):
+        raise RuntimeSettingsError("DETERMINISTIC_MAX_ITEMS_PER_CATEGORY_DEFAULT must be between 1 and 10")
+    if not (1 <= validated["min_items_per_category_default"] <= 10):
+        raise RuntimeSettingsError("DETERMINISTIC_MIN_ITEMS_PER_CATEGORY_DEFAULT must be between 1 and 10")
+    if validated["min_items_per_category_default"] > validated["max_items_per_category_default"]:
+        raise RuntimeSettingsError("DETERMINISTIC_MIN_ITEMS_PER_CATEGORY_DEFAULT must be <= max_items_per_category_default")
+
+    return validated
+
+
+def validate_deterministic_category_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    validated = {
+        "enabled": bool(settings.get("enabled", True)),
+        "weight": _parse_positive_int(settings.get("weight", 1), "DETERMINISTIC_CATEGORY_WEIGHT"),
+        "max_items": settings.get("max_items"),
+        "templates": _parse_json_object(settings.get("templates", {}), "DETERMINISTIC_CATEGORY_TEMPLATES") if settings.get("templates") is not None else {},
+        "scoring_override": _parse_json_object(settings.get("scoring_override", {}), "DETERMINISTIC_CATEGORY_SCORING_OVERRIDE") if settings.get("scoring_override") is not None else {},
+    }
+    if validated["max_items"] is not None:
+        max_items = _parse_positive_int(validated["max_items"], "DETERMINISTIC_CATEGORY_MAX_ITEMS")
+        if not (1 <= max_items <= 10):
+            raise RuntimeSettingsError("DETERMINISTIC_CATEGORY_MAX_ITEMS must be between 1 and 10")
+        validated["max_items"] = max_items
+    return validated

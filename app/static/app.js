@@ -2,6 +2,11 @@ const state = {
   categories: [],
   sources: [],
   mappings: [],
+  generationMode: "llm",
+  deterministic: {
+    global: null,
+    categories: [],
+  },
   settings: {
     duration_target_minutes: 10,
     max_item_age_hours: 48,
@@ -17,6 +22,15 @@ const statusNode = document.getElementById("status");
 function setStatus(message, isError = false) {
   statusNode.textContent = message;
   statusNode.className = isError ? "error" : "ok";
+}
+
+function safeParseJson(text, fallback = null) {
+  if (!text || !text.trim()) return fallback;
+  return JSON.parse(text);
+}
+
+function prettyJson(value) {
+  return JSON.stringify(value, null, 2);
 }
 
 async function api(path, options = {}) {
@@ -119,17 +133,66 @@ function renderMappings() {
   });
 }
 
+function renderGenerationMode() {
+  const select = document.getElementById("generation-mode");
+  const hint = document.getElementById("generation-mode-hint");
+  select.value = state.generationMode || "llm";
+  hint.textContent =
+    state.generationMode === "deterministic"
+      ? "Mode sans LLM actif: la generation utilise la matrice deterministe locale."
+      : "Mode LLM actif: la generation utilise le provider configure et les garde-fous cout/tokens.";
+}
+
+function renderDeterministicSettings() {
+  const globalTextarea = document.getElementById("deterministic-global-json");
+  const container = document.getElementById("deterministic-category-settings");
+  container.innerHTML = "";
+
+  if (state.deterministic.global) {
+    globalTextarea.value = prettyJson(state.deterministic.global);
+  } else {
+    globalTextarea.value = "{}";
+  }
+
+  state.deterministic.categories.forEach((setting) => {
+    const card = document.createElement("div");
+    card.className = "deterministic-card";
+    card.innerHTML = `
+      <h3>${setting.category_name}</h3>
+      <div class="stack">
+        <label>
+          <input type="checkbox" data-field="enabled" ${setting.enabled ? "checked" : ""} /> Active
+        </label>
+        <label>Poids</label>
+        <input type="number" min="1" data-field="weight" value="${setting.weight ?? 1}" />
+        <label>Max items</label>
+        <input type="number" min="1" data-field="max_items" value="${setting.max_items ?? ""}" />
+        <label>Templates JSON</label>
+        <textarea rows="5" spellcheck="false" data-field="templates">${prettyJson(setting.templates || {})}</textarea>
+        <label>Scoring override JSON</label>
+        <textarea rows="4" spellcheck="false" data-field="scoring_override">${prettyJson(setting.scoring_override || {})}</textarea>
+        <button type="button" data-action="save-category" data-category-id="${setting.category_id}">Sauver categorie</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
 async function reloadAll() {
-  const [categories, sources, mappings, settings, schedule] = await Promise.all([
+  const [categories, sources, mappings, settings, schedule, mode, deterministic] = await Promise.all([
     api("/api/categories"),
     api("/api/rss-sources"),
     api("/api/mappings"),
     api("/api/settings/duration-target"),
     api("/api/settings/schedule"),
+    api("/api/settings/mode"),
+    api("/api/settings/deterministic"),
   ]);
   state.categories = categories;
   state.sources = sources;
   state.mappings = mappings;
+  state.generationMode = mode.generation_mode;
+  state.deterministic = deterministic;
   state.settings = {
     ...state.settings,
     ...settings,
@@ -138,6 +201,8 @@ async function reloadAll() {
   renderCategories();
   renderSources();
   renderMappings();
+  renderGenerationMode();
+  renderDeterministicSettings();
   document.getElementById("duration-target").value = state.settings.duration_target_minutes;
   document.getElementById("schedule-cron").value = state.settings.schedule_cron;
   document.getElementById("schedule-timezone").value = state.settings.timezone;
@@ -225,6 +290,78 @@ document.getElementById("mapping-form").addEventListener("submit", async (event)
     });
     setStatus("Mapping ajoute");
     await reloadAll();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("generation-mode-save").addEventListener("click", async () => {
+  try {
+    const updated = await api("/api/settings/mode", {
+      method: "PUT",
+      body: JSON.stringify({ generation_mode: document.getElementById("generation-mode").value }),
+    });
+    state.generationMode = updated.generation_mode;
+    renderGenerationMode();
+    await reloadOps();
+    setStatus(`Mode mis a jour: ${updated.generation_mode}`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("deterministic-refresh").addEventListener("click", async () => {
+  try {
+    const deterministic = await api("/api/settings/deterministic");
+    state.deterministic = deterministic;
+    renderDeterministicSettings();
+    setStatus("Matrice deterministe rechargee");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("deterministic-global-save").addEventListener("click", async () => {
+  try {
+    const globalSettings = safeParseJson(document.getElementById("deterministic-global-json").value, {});
+    const updated = await api("/api/settings/deterministic/global", {
+      method: "PUT",
+      body: JSON.stringify(globalSettings),
+    });
+    state.deterministic.global = updated;
+    renderDeterministicSettings();
+    setStatus("Configuration deterministe globale mise a jour");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("deterministic-category-settings").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='save-category']");
+  if (!button) return;
+  const card = button.closest(".deterministic-card");
+  const categoryId = button.dataset.categoryId;
+
+  try {
+    const payload = {
+      enabled: card.querySelector("[data-field='enabled']").checked,
+      weight: Number(card.querySelector("[data-field='weight']").value),
+      max_items: card.querySelector("[data-field='max_items']").value
+        ? Number(card.querySelector("[data-field='max_items']").value)
+        : null,
+      templates: safeParseJson(card.querySelector("[data-field='templates']").value, {}),
+      scoring_override: safeParseJson(card.querySelector("[data-field='scoring_override']").value, {}),
+    };
+    const updated = await api(`/api/settings/deterministic/categories/${categoryId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    const index = state.deterministic.categories.findIndex((item) => item.category_id === categoryId);
+    if (index >= 0) {
+      state.deterministic.categories[index] = updated;
+    }
+    renderDeterministicSettings();
+    setStatus(`Categorie deterministe mise a jour: ${updated.category_name}`);
   } catch (error) {
     setStatus(error.message, true);
   }

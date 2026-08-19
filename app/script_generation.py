@@ -80,6 +80,103 @@ def build_script_prompt(preview: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_template(template: str, values: dict[str, Any]) -> str:
+    try:
+        return template.format(**values)
+    except Exception:
+        return template
+
+
+def _deterministic_intro() -> str:
+    return "Bonjour, voici votre point d'actualite du jour en version compacte et sans generation externe."
+
+
+def _deterministic_conclusion() -> str:
+    return "C'etait l'essentiel du jour. On se retrouve demain pour un nouveau point d'actualite."
+
+
+def generate_script_with_deterministic_mode(
+    *,
+    preview: dict[str, Any],
+    deterministic_global_settings: dict[str, Any],
+    deterministic_category_settings: list[dict[str, Any]],
+    per_episode_token_cap: int,
+) -> dict[str, Any]:
+    category_settings_map = {item["category_id"]: item for item in deterministic_category_settings}
+    global_max_items = int(deterministic_global_settings.get("max_items_per_category_default", 3) or 3)
+    global_min_items = int(deterministic_global_settings.get("min_items_per_category_default", 1) or 1)
+    lines: list[str] = [_deterministic_intro()]
+    sections = preview.get("sections", {})
+
+    for index, category_section in enumerate(sections.get("category_sections", [])):
+        category_id = category_section.get("category_id")
+        category_name = category_section.get("category_name", "Categorie")
+        settings = category_settings_map.get(category_id, {})
+        templates = settings.get("templates") or {}
+        lead_in_template = templates.get("leadIn") or f"En {{category_name}}, premier point: {{title}}."
+        transition_out_template = templates.get("transitionOut") or "On passe au sujet suivant."
+        briefs = category_section.get("briefs", [])
+        effective_max_items = settings.get("max_items") or global_max_items
+        effective_max_items = max(global_min_items, int(effective_max_items))
+        briefs = briefs[:effective_max_items]
+
+        lines.append(
+            _render_template(
+                lead_in_template,
+                {
+                    "category_name": category_name,
+                    "title": briefs[0]["title"] if briefs else category_name,
+                    "source_title": briefs[0]["source_title"] if briefs else "source inconnue",
+                },
+            )
+        )
+
+        for brief in briefs:
+            lines.append(
+                _render_template(
+                    templates.get("impact") or "Point cle: {title} (source: {source_title}).",
+                    {
+                        "category_name": category_name,
+                        "title": brief.get("title", ""),
+                        "source_title": brief.get("source_title", ""),
+                        "link": brief.get("link", ""),
+                    },
+                )
+            )
+
+        if index < len(sections.get("category_sections", [])) - 1:
+            lines.append(
+                _render_template(
+                    transition_out_template,
+                    {"category_name": category_name},
+                )
+            )
+
+    if sections.get("conclusion") is not None:
+        lines.append(_deterministic_conclusion())
+
+    script = "\n".join(line for line in lines if line.strip())
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": estimate_tokens_from_text(script),
+        "total_tokens": estimate_tokens_from_text(script),
+    }
+    if usage["total_tokens"] > per_episode_token_cap:
+        raise ScriptGenerationError("Per-episode token cap exceeded by deterministic output")
+
+    return {
+        "script": script,
+        "usage": usage,
+        "raw": {
+            "mode": "deterministic",
+            "global_settings": deterministic_global_settings,
+            "category_settings": deterministic_category_settings,
+            "effective_max_items_per_category_default": global_max_items,
+            "preview": preview,
+        },
+    }
+
+
 def _generate_with_openai_compatible_api(
     *,
     prompt_text: str,

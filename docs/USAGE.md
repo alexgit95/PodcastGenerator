@@ -27,7 +27,21 @@ Politique operationnelle provider:
 - Toutes les generations d'un run utilisent ce meme provider actif.
 - Pour changer de provider: mise a jour des variables provider puis restart/redeploy.
 
-## 3. Endpoints API utiles
+## 3. Mode de generation
+
+### Mode LLM
+
+- Utiliser le panneau `Mode generation` pour rester sur `LLM`.
+- La configuration provider reste requise (cle, URL, modele, pricing).
+
+### Mode sans LLM
+
+- Basculer le panneau `Mode generation` sur `Sans LLM`.
+- La generation utilise la matrice deterministe locale.
+- Le panneau `Matrice deterministe` permet de regler la configuration globale et les overrides Tech/Sport/Monde.
+- Une categorie nouvellement creee recoit automatiquement un override de base modifiable.
+
+## 4. Endpoints API utiles
 
 ### Categories et flux
 
@@ -61,7 +75,7 @@ Politique operationnelle provider:
 - `GET /api/budget-status`
 - `GET /api/jobs`
 
-## 4. Exemples rapides
+## 5. Exemples rapides
 
 ### Previsualisation
 
@@ -85,7 +99,7 @@ curl -X POST http://localhost:8080/api/generate/script \
 curl http://localhost:8080/api/budget-status
 ```
 
-## 5. Publication Docker via GitHub Actions
+## 6. Publication Docker via GitHub Actions
 
 Workflow:
 
