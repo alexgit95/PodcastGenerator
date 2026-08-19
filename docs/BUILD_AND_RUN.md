@@ -59,7 +59,7 @@ Par defaut:
 ## 6. Lancer les tests
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py"
+python -m unittest discover -s tests -t . -p "test_*.py"
 ```
 
 ## 7. Build conteneur (optionnel)

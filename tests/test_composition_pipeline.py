@@ -72,7 +72,7 @@ class CompositionPipelineTests(unittest.TestCase):
                 for i in range(20)
             ],
         }
-        preview = build_episode_preview(items_by_category, {"catA": 50, "catB": 50}, duration_target_minutes=2)
+        preview = build_episode_preview(items_by_category, {"catA": 50, "catB": 50}, duration_target_minutes=1)
         trim_log = preview["sections"]["trim_log"]
         self.assertTrue(trim_log)
         self.assertEqual(trim_log[0], "conclusion")
