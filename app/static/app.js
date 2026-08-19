@@ -21,6 +21,112 @@ const state = {
 const statusNode = document.getElementById("status");
 const progressBarNode = document.getElementById("generation-progress");
 const progressLabelNode = document.getElementById("generation-progress-label");
+let tipPopupNode = null;
+let activeTipNode = null;
+
+function ensureTipPopup() {
+  if (tipPopupNode) {
+    return tipPopupNode;
+  }
+  tipPopupNode = document.createElement("div");
+  tipPopupNode.id = "tip-popup";
+  tipPopupNode.className = "tip-popup";
+  tipPopupNode.hidden = true;
+  document.body.appendChild(tipPopupNode);
+  return tipPopupNode;
+}
+
+function hideTipPopup() {
+  const popup = ensureTipPopup();
+  popup.hidden = true;
+  popup.textContent = "";
+  if (activeTipNode) {
+    activeTipNode.removeAttribute("data-open");
+  }
+  activeTipNode = null;
+}
+
+function showTipPopup(tipNode) {
+  const text = String(tipNode.getAttribute("title") || "").trim();
+  if (!text) {
+    hideTipPopup();
+    return;
+  }
+  const popup = ensureTipPopup();
+  popup.textContent = text;
+  popup.hidden = false;
+
+  const rect = tipNode.getBoundingClientRect();
+  const popupRect = popup.getBoundingClientRect();
+  const scrollX = window.scrollX || window.pageXOffset;
+  const scrollY = window.scrollY || window.pageYOffset;
+  const left = Math.max(12, Math.min(scrollX + rect.left, scrollX + window.innerWidth - popupRect.width - 12));
+  const top = Math.max(12, scrollY + rect.bottom + 8);
+
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  if (activeTipNode && activeTipNode !== tipNode) {
+    activeTipNode.removeAttribute("data-open");
+  }
+  activeTipNode = tipNode;
+  tipNode.setAttribute("data-open", "true");
+}
+
+function initializeTipInteractions() {
+  document.addEventListener("click", (event) => {
+    const tipNode = event.target.closest(".tip");
+    if (tipNode) {
+      event.preventDefault();
+      if (activeTipNode === tipNode) {
+        hideTipPopup();
+      } else {
+        showTipPopup(tipNode);
+      }
+      return;
+    }
+
+    const popup = ensureTipPopup();
+    if (!popup.hidden && !event.target.closest("#tip-popup")) {
+      hideTipPopup();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideTipPopup();
+      return;
+    }
+
+    const target = event.target;
+    if (!target || !target.classList || !target.classList.contains("tip")) {
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    if (activeTipNode === target) {
+      hideTipPopup();
+    } else {
+      showTipPopup(target);
+    }
+  });
+}
+
+function refreshTipA11y() {
+  document.querySelectorAll(".tip").forEach((node) => {
+    if (!node.hasAttribute("tabindex")) {
+      node.setAttribute("tabindex", "0");
+    }
+    node.setAttribute("role", "button");
+    const title = String(node.getAttribute("title") || "").trim();
+    if (title) {
+      node.setAttribute("aria-label", `Info: ${title}`);
+    }
+  });
+}
 
 function setStatus(message, isError = false) {
   statusNode.textContent = message;
@@ -297,6 +403,8 @@ function renderDeterministicSettings() {
     `;
     container.appendChild(card);
   });
+
+  refreshTipA11y();
 }
 
 async function reloadAll() {
@@ -877,4 +985,6 @@ document.getElementById("ops-refresh").addEventListener("click", async () => {
   }
 });
 
+initializeTipInteractions();
+refreshTipA11y();
 reloadAll().catch((error) => setStatus(error.message, true));
