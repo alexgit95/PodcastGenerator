@@ -34,9 +34,81 @@
 
       <section class="panel panel-wide" id="deterministic-panel">
         <h2>Matrice deterministe</h2>
-        <div class="stack">
-          <label for="deterministic-global-json">Configuration globale</label>
-          <textarea id="deterministic-global-json" rows="10" spellcheck="false"></textarea>
+        <p class="hint">Mode guide en francais avec validation metier et infobulles. Le mode avance JSON reste disponible.</p>
+        <div class="deterministic-global-form">
+          <label for="det-version">Version <span class="tip" title="Version de configuration deterministe. Utile pour tracer les evolutions.">?</span></label>
+          <input id="det-version" type="number" min="1" step="1" />
+
+          <label for="det-target-duration">Duree cible (sec) <span class="tip" title="Doit rester entre 120 et 3600 secondes.">?</span></label>
+          <input id="det-target-duration" type="number" min="120" max="3600" step="1" />
+
+          <label for="det-speech-rate">Debit de parole (mots/min) <span class="tip" title="Vitesse de narration cible; borne entre 100 et 220.">?</span></label>
+          <input id="det-speech-rate" type="number" min="100" max="220" step="1" />
+
+          <label for="det-freshness-hours">Fraicheur max (heures) <span class="tip" title="Ignore les contenus trop anciens au-dela de cette fenetre.">?</span></label>
+          <input id="det-freshness-hours" type="number" min="1" step="1" />
+
+          <label for="det-min-items">Min items/categorie <span class="tip" title="Nombre minimal d'actualites retenues par categorie.">?</span></label>
+          <input id="det-min-items" type="number" min="1" max="10" step="1" />
+
+          <label for="det-max-items">Max items/categorie <span class="tip" title="Nombre maximal d'actualites retenues par categorie.">?</span></label>
+          <input id="det-max-items" type="number" min="1" max="10" step="1" />
+
+          <label for="det-score-freshness">Poids score: fraicheur <span class="tip" title="Pondere l'impact de la fraicheur dans le score final.">?</span></label>
+          <input id="det-score-freshness" type="number" min="0" max="1" step="0.05" />
+
+          <label for="det-score-credibility">Poids score: credibilite source <span class="tip" title="Pondere la confiance accordee a la source RSS.">?</span></label>
+          <input id="det-score-credibility" type="number" min="0" max="1" step="0.05" />
+
+          <label for="det-score-richness">Poids score: richesse texte <span class="tip" title="Pondere le niveau de detail et de substance du texte.">?</span></label>
+          <input id="det-score-richness" type="number" min="0" max="1" step="0.05" />
+
+          <label for="det-score-diversity">Poids score: diversite <span class="tip" title="Pondere la variete editoriale pour eviter la redondance.">?</span></label>
+          <input id="det-score-diversity" type="number" min="0" max="1" step="0.05" />
+
+          <label for="det-extractive-max-sentences">Extractif: max phrases/item <span class="tip" title="Limite le nombre de phrases retenues pour chaque item.">?</span></label>
+          <input id="det-extractive-max-sentences" type="number" min="1" max="10" step="1" />
+
+          <label for="det-extractive-min-chars">Extractif: min caracteres/phrase <span class="tip" title="Ignore les phrases trop courtes.">?</span></label>
+          <input id="det-extractive-min-chars" type="number" min="1" step="1" />
+
+          <label for="det-extractive-max-chars">Extractif: max caracteres/phrase <span class="tip" title="Coupe les phrases trop longues.">?</span></label>
+          <input id="det-extractive-max-chars" type="number" min="1" step="1" />
+
+          <label class="checkbox-line" for="det-extractive-strip-quotes">
+            <input id="det-extractive-strip-quotes" type="checkbox" />
+            Retirer les citations trop longues
+          </label>
+
+          <label for="det-trim-step">Trim: pas reduction (sec) <span class="tip" title="Reduction progressive appliquee quand la duree cible est depassee.">?</span></label>
+          <input id="det-trim-step" type="number" min="1" step="1" />
+
+          <label for="det-trim-hard-floor">Trim: plancher dur (sec) <span class="tip" title="Duree minimale absolue du script apres coupes.">?</span></label>
+          <input id="det-trim-hard-floor" type="number" min="1" step="1" />
+
+          <label for="det-trim-order">Trim: ordre de coupe <span class="tip" title="Ordre applique pour retirer des blocs, separes par virgules.">?</span></label>
+          <input id="det-trim-order" type="text" placeholder="conclusion, transitions, lowestPriorityItem" />
+
+          <label for="det-fallback-add">Fallback: blocs a ajouter <span class="tip" title="Blocs ajoutes si la sortie est trop courte, separes par virgules.">?</span></label>
+          <input id="det-fallback-add" type="text" placeholder="whyItMatters, watchNext" />
+
+          <label for="det-fallback-no-items">Fallback: aucun item <span class="tip" title="Strategie appliquee quand une categorie n'a aucun item.">?</span></label>
+          <input id="det-fallback-no-items" type="text" placeholder="skipCategoryAndRebalance" />
+
+          <details class="det-advanced">
+            <summary>Mode avance JSON (optionnel)</summary>
+            <div class="stack">
+              <label for="det-scoring-json">scoring_weights JSON</label>
+              <textarea id="det-scoring-json" rows="4" spellcheck="false"></textarea>
+              <label for="det-extractive-json">extractive_rules JSON</label>
+              <textarea id="det-extractive-json" rows="4" spellcheck="false"></textarea>
+              <label for="det-trim-json">trim_policy JSON</label>
+              <textarea id="det-trim-json" rows="4" spellcheck="false"></textarea>
+              <label for="det-fallback-json">fallback_policy JSON</label>
+              <textarea id="det-fallback-json" rows="4" spellcheck="false"></textarea>
+            </div>
+          </details>
+
           <button id="deterministic-global-save" type="button">Sauver configuration globale</button>
         </div>
         <div id="deterministic-category-settings" class="deterministic-grid"></div>

@@ -41,6 +41,41 @@ function prettyJson(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function coalesce(value, fallback) {
+  return value === undefined || value === null ? fallback : value;
+}
+
+function escapeHtml(value) {
+  return String(coalesce(value, ""))
+    .split("&")
+    .join("&amp;")
+    .split("<")
+    .join("&lt;")
+    .split(">")
+    .join("&gt;")
+    .split('"')
+    .join("&quot;")
+    .split("'")
+    .join("&#39;");
+}
+
+function parseCommaSeparatedList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function readRequiredInt(id) {
+  return Number(document.getElementById(id).value);
+}
+
+function readOptionalNumber(node) {
+  const raw = String(node && node.value ? node.value : "").trim();
+  if (!raw) return null;
+  return Number(raw);
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -162,34 +197,100 @@ function renderAudioMode() {
 }
 
 function renderDeterministicSettings() {
-  const globalTextarea = document.getElementById("deterministic-global-json");
+  const globalSettings = state.deterministic.global || {};
+  const scoring = globalSettings.scoring_weights || {};
+  const extractive = globalSettings.extractive_rules || {};
+  const trimPolicy = globalSettings.trim_policy || {};
+  const fallbackPolicy = globalSettings.fallback_policy || {};
   const container = document.getElementById("deterministic-category-settings");
   container.innerHTML = "";
 
-  if (state.deterministic.global) {
-    globalTextarea.value = prettyJson(state.deterministic.global);
-  } else {
-    globalTextarea.value = "{}";
-  }
+  document.getElementById("det-version").value = coalesce(globalSettings.version, 1);
+  document.getElementById("det-target-duration").value = coalesce(globalSettings.target_duration_sec, 600);
+  document.getElementById("det-speech-rate").value = coalesce(globalSettings.speech_rate_wpm, 155);
+  document.getElementById("det-freshness-hours").value = coalesce(globalSettings.freshness_hours_max, 48);
+  document.getElementById("det-min-items").value = coalesce(globalSettings.min_items_per_category_default, 1);
+  document.getElementById("det-max-items").value = coalesce(globalSettings.max_items_per_category_default, 3);
+
+  document.getElementById("det-score-freshness").value = coalesce(scoring.freshness, 0.45);
+  document.getElementById("det-score-credibility").value = coalesce(scoring.sourceCredibility, 0.3);
+  document.getElementById("det-score-richness").value = coalesce(scoring.textRichness, 0.15);
+  document.getElementById("det-score-diversity").value = coalesce(scoring.diversity, 0.1);
+
+  document.getElementById("det-extractive-max-sentences").value = coalesce(extractive.maxSentencesPerItem, 2);
+  document.getElementById("det-extractive-min-chars").value = coalesce(extractive.minSentenceChars, 40);
+  document.getElementById("det-extractive-max-chars").value = coalesce(extractive.maxSentenceChars, 220);
+  document.getElementById("det-extractive-strip-quotes").checked = Boolean(extractive.stripQuotesIfLong);
+
+  document.getElementById("det-trim-step").value = coalesce(trimPolicy.stepSec, 15);
+  document.getElementById("det-trim-hard-floor").value = coalesce(trimPolicy.hardFloorSec, 540);
+  document.getElementById("det-trim-order").value = Array.isArray(trimPolicy.order) ? trimPolicy.order.join(", ") : "";
+
+  document.getElementById("det-fallback-add").value = Array.isArray(fallbackPolicy.ifTooShortAdd)
+    ? fallbackPolicy.ifTooShortAdd.join(", ")
+    : "";
+  document.getElementById("det-fallback-no-items").value = coalesce(fallbackPolicy.ifNoItems, "skipCategoryAndRebalance");
+
+  document.getElementById("det-scoring-json").value = prettyJson(scoring);
+  document.getElementById("det-extractive-json").value = prettyJson(extractive);
+  document.getElementById("det-trim-json").value = prettyJson(trimPolicy);
+  document.getElementById("det-fallback-json").value = prettyJson(fallbackPolicy);
 
   state.deterministic.categories.forEach((setting) => {
+    const templates = setting.templates || {};
+    const scoringOverride = setting.scoring_override || {};
+    const templateIntro = coalesce(templates.intro, "");
+    const templateImpact = coalesce(templates.impact, "");
+    const templateTransition = coalesce(templates.transition, "");
     const card = document.createElement("div");
     card.className = "deterministic-card";
     card.innerHTML = `
-      <h3>${setting.category_name}</h3>
-      <div class="stack">
-        <label>
-          <input type="checkbox" data-field="enabled" ${setting.enabled ? "checked" : ""} /> Active
+      <h3>${escapeHtml(setting.category_name)}</h3>
+      <p class="card-meta">Configuration locale prioritaire pour cette categorie.</p>
+      <div class="det-card-grid">
+        <label class="checkbox-line" for="det-enabled-${escapeHtml(setting.category_id)}">
+          <input id="det-enabled-${escapeHtml(setting.category_id)}" type="checkbox" data-field="enabled" ${setting.enabled ? "checked" : ""} /> Active
         </label>
-        <label>Poids</label>
-        <input type="number" min="1" data-field="weight" value="${setting.weight ?? 1}" />
-        <label>Max items</label>
-        <input type="number" min="1" data-field="max_items" value="${setting.max_items ?? ""}" />
-        <label>Templates JSON</label>
-        <textarea rows="5" spellcheck="false" data-field="templates">${prettyJson(setting.templates || {})}</textarea>
-        <label>Scoring override JSON</label>
-        <textarea rows="4" spellcheck="false" data-field="scoring_override">${prettyJson(setting.scoring_override || {})}</textarea>
-        <button type="button" data-action="save-category" data-category-id="${setting.category_id}">Sauver categorie</button>
+        <span></span>
+
+        <label>Poids editorial <span class="tip" title="Plus la valeur est elevee, plus cette categorie prend de place dans l'episode.">?</span></label>
+        <input type="number" min="1" data-field="weight" value="${coalesce(setting.weight, 1)}" />
+
+        <label>Max items (override) <span class="tip" title="Laisse vide pour utiliser la valeur globale.">?</span></label>
+        <input type="number" min="1" max="10" data-field="max_items" value="${coalesce(setting.max_items, "")}" />
+
+        <label class="full">Template intro</label>
+        <input class="full" type="text" data-field="template_intro" value="${escapeHtml(templateIntro)}" placeholder="Ex: Cote innovation, voici ce qui change..." />
+
+        <label class="full">Template impact principal</label>
+        <input class="full" type="text" data-field="template_impact" value="${escapeHtml(templateImpact)}" placeholder="Ex: Pourquoi c'est important maintenant..." />
+
+        <label class="full">Template transition</label>
+        <input class="full" type="text" data-field="template_transition" value="${escapeHtml(templateTransition)}" placeholder="Ex: On passe a la categorie suivante..." />
+
+        <label>Score fraicheur</label>
+        <input type="number" min="0" max="1" step="0.05" data-field="score_freshness" value="${coalesce(scoringOverride.freshness, "")}" />
+
+        <label>Score credibilite</label>
+        <input type="number" min="0" max="1" step="0.05" data-field="score_credibility" value="${coalesce(scoringOverride.sourceCredibility, "")}" />
+
+        <label>Score richesse</label>
+        <input type="number" min="0" max="1" step="0.05" data-field="score_richness" value="${coalesce(scoringOverride.textRichness, "")}" />
+
+        <label>Score diversite</label>
+        <input type="number" min="0" max="1" step="0.05" data-field="score_diversity" value="${coalesce(scoringOverride.diversity, "")}" />
+
+        <details class="full">
+          <summary>Mode avance JSON</summary>
+          <div class="stack">
+            <label>Templates JSON</label>
+            <textarea rows="4" spellcheck="false" data-field="templates">${escapeHtml(prettyJson(templates))}</textarea>
+            <label>Scoring override JSON</label>
+            <textarea rows="4" spellcheck="false" data-field="scoring_override">${escapeHtml(prettyJson(scoringOverride))}</textarea>
+          </div>
+        </details>
+
+        <button class="full" type="button" data-action="save-category" data-category-id="${escapeHtml(setting.category_id)}">Sauver categorie</button>
       </div>
     `;
     container.appendChild(card);
@@ -259,7 +360,11 @@ function generatedScriptTextOnly() {
 function renderScheduleSummary(schedule) {
   const summary = document.getElementById("schedule-summary");
   const nextRuns = (schedule.next_runs || []).slice(0, 3).join("\n");
-  summary.textContent = `Episodes/semaine (estimation): ${schedule.episodes_per_week_hint ?? "n/a"}\nProchains runs:\n${nextRuns || "aucun"}`;
+  const episodesPerWeekHint =
+    schedule.episodes_per_week_hint === undefined || schedule.episodes_per_week_hint === null
+      ? "n/a"
+      : schedule.episodes_per_week_hint;
+  summary.textContent = `Episodes/semaine (estimation): ${episodesPerWeekHint}\nProchains runs:\n${nextRuns || "aucun"}`;
 }
 
 function renderOps() {
@@ -378,10 +483,74 @@ document.getElementById("deterministic-refresh").addEventListener("click", async
 
 document.getElementById("deterministic-global-save").addEventListener("click", async () => {
   try {
-    const globalSettings = safeParseJson(document.getElementById("deterministic-global-json").value, {});
+    const current = state.deterministic.global || {};
+
+    const baseScoring = {
+      ...(current.scoring_weights || {}),
+      freshness: Number(document.getElementById("det-score-freshness").value),
+      sourceCredibility: Number(document.getElementById("det-score-credibility").value),
+      textRichness: Number(document.getElementById("det-score-richness").value),
+      diversity: Number(document.getElementById("det-score-diversity").value),
+    };
+    const scoringAdvanced = safeParseJson(document.getElementById("det-scoring-json").value, {});
+
+    const baseExtractive = {
+      ...(current.extractive_rules || {}),
+      maxSentencesPerItem: Number(document.getElementById("det-extractive-max-sentences").value),
+      minSentenceChars: Number(document.getElementById("det-extractive-min-chars").value),
+      maxSentenceChars: Number(document.getElementById("det-extractive-max-chars").value),
+      stripQuotesIfLong: document.getElementById("det-extractive-strip-quotes").checked,
+    };
+    const extractiveAdvanced = safeParseJson(document.getElementById("det-extractive-json").value, {});
+
+    const baseTrimPolicy = {
+      ...(current.trim_policy || {}),
+      order: parseCommaSeparatedList(document.getElementById("det-trim-order").value),
+      stepSec: Number(document.getElementById("det-trim-step").value),
+      hardFloorSec: Number(document.getElementById("det-trim-hard-floor").value),
+    };
+    const trimAdvanced = safeParseJson(document.getElementById("det-trim-json").value, {});
+
+    const baseFallbackPolicy = {
+      ...(current.fallback_policy || {}),
+      ifTooShortAdd: parseCommaSeparatedList(document.getElementById("det-fallback-add").value),
+      ifNoItems: document.getElementById("det-fallback-no-items").value.trim() || "skipCategoryAndRebalance",
+    };
+    const fallbackAdvanced = safeParseJson(document.getElementById("det-fallback-json").value, {});
+
+    const payload = {
+      ...current,
+      version: readRequiredInt("det-version"),
+      target_duration_sec: readRequiredInt("det-target-duration"),
+      speech_rate_wpm: readRequiredInt("det-speech-rate"),
+      freshness_hours_max: readRequiredInt("det-freshness-hours"),
+      min_items_per_category_default: readRequiredInt("det-min-items"),
+      max_items_per_category_default: readRequiredInt("det-max-items"),
+      scoring_weights: {
+        ...baseScoring,
+        ...scoringAdvanced,
+      },
+      extractive_rules: {
+        ...baseExtractive,
+        ...extractiveAdvanced,
+      },
+      trim_policy: {
+        ...baseTrimPolicy,
+        ...trimAdvanced,
+      },
+      fallback_policy: {
+        ...baseFallbackPolicy,
+        ...fallbackAdvanced,
+      },
+    };
+
+    if (payload.min_items_per_category_default > payload.max_items_per_category_default) {
+      throw new Error("Min items/categorie doit etre <= max items/categorie");
+    }
+
     const updated = await api("/api/settings/deterministic/global", {
       method: "PUT",
-      body: JSON.stringify(globalSettings),
+      body: JSON.stringify(payload),
     });
     state.deterministic.global = updated;
     renderDeterministicSettings();
@@ -398,14 +567,56 @@ document.getElementById("deterministic-category-settings").addEventListener("cli
   const categoryId = button.dataset.categoryId;
 
   try {
+    const templatesAdvanced = safeParseJson(card.querySelector("[data-field='templates']").value, {});
+    const scoringAdvanced = safeParseJson(card.querySelector("[data-field='scoring_override']").value, {});
+
+    const templates = { ...templatesAdvanced };
+    const templateIntro = card.querySelector("[data-field='template_intro']").value.trim();
+    const templateImpact = card.querySelector("[data-field='template_impact']").value.trim();
+    const templateTransition = card.querySelector("[data-field='template_transition']").value.trim();
+    if (templateIntro) {
+      templates.intro = templateIntro;
+    } else {
+      delete templates.intro;
+    }
+    if (templateImpact) {
+      templates.impact = templateImpact;
+    } else {
+      delete templates.impact;
+    }
+    if (templateTransition) {
+      templates.transition = templateTransition;
+    } else {
+      delete templates.transition;
+    }
+
+    const scoringOverride = { ...scoringAdvanced };
+    const freshnessNode = card.querySelector("[data-field='score_freshness']");
+    const credibilityNode = card.querySelector("[data-field='score_credibility']");
+    const richnessNode = card.querySelector("[data-field='score_richness']");
+    const diversityNode = card.querySelector("[data-field='score_diversity']");
+    const freshness = readOptionalNumber(freshnessNode);
+    const sourceCredibility = readOptionalNumber(credibilityNode);
+    const textRichness = readOptionalNumber(richnessNode);
+    const diversity = readOptionalNumber(diversityNode);
+
+    if (freshness === null) delete scoringOverride.freshness;
+    else scoringOverride.freshness = freshness;
+    if (sourceCredibility === null) delete scoringOverride.sourceCredibility;
+    else scoringOverride.sourceCredibility = sourceCredibility;
+    if (textRichness === null) delete scoringOverride.textRichness;
+    else scoringOverride.textRichness = textRichness;
+    if (diversity === null) delete scoringOverride.diversity;
+    else scoringOverride.diversity = diversity;
+
+    const maxItemsRaw = String(card.querySelector("[data-field='max_items']").value || "").trim();
+
     const payload = {
       enabled: card.querySelector("[data-field='enabled']").checked,
       weight: Number(card.querySelector("[data-field='weight']").value),
-      max_items: card.querySelector("[data-field='max_items']").value
-        ? Number(card.querySelector("[data-field='max_items']").value)
-        : null,
-      templates: safeParseJson(card.querySelector("[data-field='templates']").value, {}),
-      scoring_override: safeParseJson(card.querySelector("[data-field='scoring_override']").value, {}),
+      max_items: maxItemsRaw ? Number(maxItemsRaw) : null,
+      templates,
+      scoring_override: scoringOverride,
     };
     const updated = await api(`/api/settings/deterministic/categories/${categoryId}`, {
       method: "PUT",
