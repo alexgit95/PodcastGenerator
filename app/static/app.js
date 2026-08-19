@@ -215,6 +215,22 @@ function renderPreview(preview) {
   output.textContent = JSON.stringify(preview, null, 2);
 }
 
+function renderGeneratedScript(payload) {
+  const output = document.getElementById("script-output");
+  const header = `Mode: ${payload.mode_used || "n/a"} | Job: ${payload.job_id || "n/a"}`;
+  output.textContent = `${header}\n\n${payload.script || "(script vide)"}`;
+}
+
+function generatedScriptTextOnly() {
+  const output = document.getElementById("script-output").textContent || "";
+  const separator = "\n\n";
+  const parts = output.split(separator);
+  if (parts.length < 2) {
+    return output;
+  }
+  return parts.slice(1).join(separator).trim();
+}
+
 function renderScheduleSummary(schedule) {
   const summary = document.getElementById("schedule-summary");
   const nextRuns = (schedule.next_runs || []).slice(0, 3).join("\n");
@@ -476,6 +492,38 @@ document.getElementById("preview-run").addEventListener("click", async () => {
     setStatus("Previsualisation terminee");
   } catch (error) {
     setStatus(error.message, true);
+  }
+});
+
+document.getElementById("generate-run").addEventListener("click", async () => {
+  try {
+    const categoryIds = state.categories.filter((item) => Boolean(item.enabled)).map((item) => item.id);
+    const response = await api("/api/generate/script", {
+      method: "POST",
+      body: JSON.stringify({
+        category_ids: categoryIds,
+        duration_target_minutes: Number(document.getElementById("duration-target").value),
+      }),
+    });
+    renderGeneratedScript(response);
+    await reloadOps();
+    setStatus("Script genere avec succes");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+document.getElementById("copy-script").addEventListener("click", async () => {
+  try {
+    const text = generatedScriptTextOnly();
+    if (!text || text === "Aucun script genere") {
+      setStatus("Aucun script a copier", true);
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    setStatus("Script copie dans le presse-papiers");
+  } catch (error) {
+    setStatus("Copie impossible: verifier les permissions du navigateur", true);
   }
 });
 
