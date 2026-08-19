@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import json
 import math
 from typing import Any
@@ -87,12 +88,35 @@ def _render_template(template: str, values: dict[str, Any]) -> str:
         return template
 
 
-def _deterministic_intro() -> str:
-    return "Bonjour, voici votre point d'actualite du jour en version compacte et sans generation externe."
+def _deterministic_intro(*, preview: dict[str, Any], randomize: bool = False) -> str:
+    sections = preview.get("sections", {}) if isinstance(preview, dict) else {}
+    category_sections = sections.get("category_sections", []) if isinstance(sections, dict) else []
+    category_count = len(category_sections)
+    duration_minutes = int(preview.get("duration_target_minutes", 10) or 10) if isinstance(preview, dict) else 10
+    seed = f"intro:{duration_minutes}:{category_count}"
+    variants = [
+        "Bonjour, voici votre point d'actualité du jour, en version claire et directe.",
+        "Bienvenue dans ce bulletin express: l'essentiel des actualités en quelques minutes.",
+        "Bonjour à tous, on démarre avec les informations à retenir dans cette édition rapide.",
+        "Place au tour d'horizon du jour: les faits marquants, sans détour.",
+        "Voici votre synthèse d'actualité: points clés, contexte utile et suite à surveiller.",
+    ]
+    return _pick_variant(variants, seed, randomize=randomize)
 
 
-def _deterministic_conclusion() -> str:
-    return "C'etait l'essentiel du jour. On se retrouve demain pour un nouveau point d'actualite."
+def _deterministic_conclusion(*, preview: dict[str, Any], randomize: bool = False) -> str:
+    sections = preview.get("sections", {}) if isinstance(preview, dict) else {}
+    category_sections = sections.get("category_sections", []) if isinstance(sections, dict) else []
+    brief_count = sum(len(section.get("briefs", [])) for section in category_sections)
+    seed = f"conclusion:{brief_count}:{len(category_sections)}"
+    variants = [
+        "C'était l'essentiel à retenir aujourd'hui. Rendez-vous au prochain point d'actualité.",
+        "Fin de cette édition: on se retrouve très vite pour la prochaine mise à jour de l'actualité.",
+        "C'est la fin de ce récap. Merci de votre écoute et à bientôt pour la suite des informations.",
+        "On clôture ce bulletin ici. Prochain rendez-vous pour suivre l'évolution de ces sujets.",
+        "Voilà pour les brèves du jour. À la prochaine édition pour un nouveau tour d'horizon.",
+    ]
+    return _pick_variant(variants, seed, randomize=randomize)
 
 
 def _word_count(text: str) -> int:
@@ -126,10 +150,14 @@ def _align_brief_text_length(
     return aligned
 
 
-def _pick_variant(variants: list[str], seed: str) -> str:
+def _pick_variant(variants: list[str], seed: str, *, randomize: bool = False) -> str:
     if not variants:
         return ""
     checksum = sum(ord(char) for char in (seed or ""))
+    if randomize:
+        # Keep selection stable-ish around content seed while allowing run-to-run variation.
+        jitter = random.randint(0, len(variants) - 1)
+        return variants[(checksum + jitter) % len(variants)]
     return variants[checksum % len(variants)]
 
 
@@ -147,8 +175,9 @@ def generate_script_with_deterministic_mode(
     extractive_rules = deterministic_global_settings.get("extractive_rules") or {}
     brief_seconds_target = int(extractive_rules.get("briefSecondsTarget", preview.get("brief_seconds", 45)) or 45)
     duration_alignment_enabled = bool(extractive_rules.get("durationAlignmentEnabled", False))
+    intro_conclusion_randomized = bool(extractive_rules.get("introConclusionRandomized", True))
     words_per_brief_target = max(15, min(180, int((speech_rate_wpm * brief_seconds_target) / 60)))
-    lines: list[str] = [_deterministic_intro()]
+    lines: list[str] = [_deterministic_intro(preview=preview, randomize=intro_conclusion_randomized)]
     sections = preview.get("sections", {})
 
     for index, category_section in enumerate(sections.get("category_sections", [])):
@@ -232,7 +261,12 @@ def generate_script_with_deterministic_mode(
             )
 
     if sections.get("conclusion") is not None:
-        lines.append(_deterministic_conclusion())
+        lines.append(
+            _deterministic_conclusion(
+                preview=preview,
+                randomize=intro_conclusion_randomized,
+            )
+        )
 
     script = "\n".join(line for line in lines if line.strip())
     usage = {
@@ -253,6 +287,7 @@ def generate_script_with_deterministic_mode(
             "effective_max_items_per_category_default": global_max_items,
             "effective_brief_seconds_target": brief_seconds_target,
             "duration_alignment_enabled": duration_alignment_enabled,
+            "intro_conclusion_randomized": intro_conclusion_randomized,
             "preview": preview,
         },
     }
