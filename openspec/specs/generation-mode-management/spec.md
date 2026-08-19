@@ -1,7 +1,7 @@
 # generation-mode-management Specification
 
 ## Purpose
-TBD - created by archiving change ui-generation-mode-toggle. Update Purpose after archive.
+Describe how operators manage generation modes and deterministic settings from the admin UI.
 ## Requirements
 ### Requirement: Operator SHALL manage generation mode from the application settings UI
 The system MUST expose settings controls that allow an operator to view and update the active generation mode between `llm` and `deterministic`.
@@ -23,6 +23,17 @@ The system MUST provide API endpoints to read and update deterministic global se
 #### Scenario: Update deterministic category override
 - **WHEN** an operator updates deterministic override values for a category
 - **THEN** the system stores validated values for that category and applies them in later deterministic generation runs
+
+#### Scenario: Update deterministic global duration controls
+- **WHEN** an operator updates deterministic global settings with per-article seconds and duration alignment flag
+- **THEN** the system validates and persists these values for use in subsequent deterministic preview and generation runs
+
+### Requirement: Deterministic matrix UI SHALL expose per-article duration and alignment controls
+The admin UI MUST provide controls for deterministic `Secondes cible/article` and `Aligner la longueur du script sur les secondes/article`.
+
+#### Scenario: Operator changes deterministic duration controls in UI
+- **WHEN** an operator changes these controls and saves deterministic global settings
+- **THEN** values are sent to deterministic global settings API and reflected on next settings reload
 
 ### Requirement: New categories SHALL receive deterministic defaults
 When a category is created, the system MUST create a deterministic category override record with default values so the UI has a baseline configuration available immediately.

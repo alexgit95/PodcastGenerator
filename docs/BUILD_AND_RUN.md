@@ -70,7 +70,9 @@ Utilisation du mode generation dans l'interface:
 2. Choisir `LLM` ou `Sans LLM` puis sauver le mode.
 3. En mode `Sans LLM`, ouvrir `Matrice deterministe` pour ajuster la configuration globale et les overrides par categorie.
 4. Chaque nouvelle categorie recoit un override deterministe par defaut, modifiable ensuite dans sa carte.
-5. Le bouton `Generer script` lance uniquement la generation du texte et affiche une barre de progression pendant le traitement.
+5. Ajuster `Secondes cible/article` pour controler la granularite de la composition (estimation preview + quota de selection).
+6. Activer `Aligner la longueur du script sur les secondes/article` si tu veux un rendu texte plus proche de la duree cible par article.
+7. Le bouton `Generer script` lance uniquement la generation du texte et affiche une barre de progression pendant le traitement.
 
 Utilisation du mode audio dans l'interface:
 

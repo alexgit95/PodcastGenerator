@@ -6,6 +6,36 @@ from app.rss_collection import CollectedItem, collect_fresh_items
 
 
 class CompositionPipelineTests(unittest.TestCase):
+    def test_configurable_brief_seconds_is_reflected_in_preview(self):
+        now = datetime.now(timezone.utc)
+        items_by_category = {
+            "catA": [
+                CollectedItem(
+                    item_key=f"a{i}",
+                    title=f"A{i}",
+                    link=f"https://a/{i}",
+                    published_at=now - timedelta(hours=1),
+                    source_id="srcA",
+                    source_title="Source A",
+                    category_id="catA",
+                    category_name="Categorie A",
+                )
+                for i in range(20)
+            ]
+        }
+
+        preview = build_episode_preview(
+            items_by_category,
+            {"catA": 100},
+            duration_target_minutes=5,
+            brief_seconds=20,
+        )
+
+        self.assertEqual(preview["brief_seconds"], 20)
+        briefs = preview["sections"]["category_sections"][0]["briefs"]
+        self.assertTrue(briefs)
+        self.assertEqual(briefs[0]["estimated_seconds"], 20)
+
     def test_weighted_allocation_prefers_higher_weight(self):
         now = datetime.now(timezone.utc)
         items_by_category = {

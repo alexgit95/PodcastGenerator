@@ -14,6 +14,8 @@ DETERMINISTIC_EXTRACTIVE_RULES = {
     "minSentenceChars": 40,
     "maxSentenceChars": 220,
     "stripQuotesIfLong": True,
+    "briefSecondsTarget": 45,
+    "durationAlignmentEnabled": False,
 }
 DETERMINISTIC_TRIM_POLICY = {
     "order": ["conclusion", "transitions", "lowestPriorityItem"],

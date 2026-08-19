@@ -89,6 +89,20 @@ def _compose_preview_from_payload(payload: dict, profile: dict):
     if duration_target_minutes <= 0:
         return None, (jsonify({"error": "duration_target_minutes must be > 0"}), 400)
     max_item_age_hours = int(profile["max_item_age_hours"])
+    brief_seconds = 45
+
+    generation_mode = str(profile.get("generation_mode", "llm")).strip().lower() or "llm"
+    if generation_mode == "deterministic":
+        deterministic_global_settings = get_deterministic_global_settings(profile["id"]) or {}
+        extractive_rules = deterministic_global_settings.get("extractive_rules") or {}
+        try:
+            max_item_age_hours = int(deterministic_global_settings.get("freshness_hours_max", max_item_age_hours))
+        except (TypeError, ValueError):
+            max_item_age_hours = int(profile["max_item_age_hours"])
+        try:
+            brief_seconds = int(extractive_rules.get("briefSecondsTarget", 45) or 45)
+        except (TypeError, ValueError):
+            brief_seconds = 45
 
     bindings = list_category_source_bindings(requested_category_ids)
     if not bindings:
@@ -112,7 +126,12 @@ def _compose_preview_from_payload(payload: dict, profile: dict):
         weights[binding["category_id"]] = max(1, int(binding["default_weight"]))
 
     items_by_category = collect_fresh_items(bindings, max_item_age_hours)
-    preview = build_episode_preview(items_by_category, weights, duration_target_minutes)
+    preview = build_episode_preview(
+        items_by_category,
+        weights,
+        duration_target_minutes,
+        brief_seconds=brief_seconds,
+    )
     preview["max_item_age_hours"] = max_item_age_hours
     return preview, None
 

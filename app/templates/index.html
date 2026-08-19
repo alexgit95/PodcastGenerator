@@ -75,9 +75,17 @@
           <label for="det-extractive-max-chars">Extractif: max caracteres/phrase <span class="tip" title="Coupe les phrases trop longues.">?</span></label>
           <input id="det-extractive-max-chars" type="number" min="1" step="1" />
 
+          <label for="det-brief-seconds">Secondes cible/article <span class="tip" title="Utilise cette valeur pour estimer la composition et calibrer le rendu final.">?</span></label>
+          <input id="det-brief-seconds" type="number" min="5" max="180" step="1" />
+
           <label class="checkbox-line" for="det-extractive-strip-quotes">
             <input id="det-extractive-strip-quotes" type="checkbox" />
             Retirer les citations trop longues
+          </label>
+
+          <label class="checkbox-line" for="det-duration-alignment-enabled">
+            <input id="det-duration-alignment-enabled" type="checkbox" />
+            Aligner la longueur du script sur les secondes/article
           </label>
 
           <label for="det-trim-step">Trim: pas reduction (sec) <span class="tip" title="Reduction progressive appliquee quand la duree cible est depassee.">?</span></label>

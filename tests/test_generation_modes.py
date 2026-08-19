@@ -72,10 +72,20 @@ class GenerationModeApiTests(unittest.TestCase):
             "_fetch_source_items",
             return_value=[
                 {
-                    "title": "Fresh item",
-                    "link": "https://example.com/fresh",
+                    "title": "Fresh item A",
+                    "link": "https://example.com/fresh-a",
                     "published_at": published_at,
-                }
+                },
+                {
+                    "title": "Fresh item B",
+                    "link": "https://example.com/fresh-b",
+                    "published_at": published_at - timedelta(minutes=5),
+                },
+                {
+                    "title": "Fresh item C",
+                    "link": "https://example.com/fresh-c",
+                    "published_at": published_at - timedelta(minutes=10),
+                },
             ],
         )
 
@@ -181,6 +191,71 @@ class GenerationModeApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("between 120 and 3600", response.get_json()["error"])
+
+    def test_invalid_brief_seconds_setting_is_rejected(self):
+        response = self.client.put(
+            "/api/settings/deterministic/global",
+            json={
+                "version": 1,
+                "target_duration_sec": 600,
+                "speech_rate_wpm": 155,
+                "freshness_hours_max": 48,
+                "max_items_per_category_default": 3,
+                "min_items_per_category_default": 1,
+                "scoring_weights": {"freshness": 0.45},
+                "extractive_rules": {"briefSecondsTarget": 2},
+                "trim_policy": {"order": ["conclusion"]},
+                "fallback_policy": {"ifNoItems": "skipCategoryAndRebalance"},
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("between 5 and 180", response.get_json()["error"])
+
+    def test_deterministic_brief_seconds_and_alignment_are_applied(self):
+        with patch.dict(os.environ, {}, clear=True), self._patch_feed(), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            side_effect=AssertionError("LLM provider must not be called in deterministic mode"),
+        ):
+            mode_response = self.client.put("/api/settings/mode", json={"generation_mode": "deterministic"})
+            self.assertEqual(mode_response.status_code, 200)
+
+            settings_response = self.client.put(
+                "/api/settings/deterministic/global",
+                json={
+                    "version": 1,
+                    "target_duration_sec": 600,
+                    "speech_rate_wpm": 155,
+                    "freshness_hours_max": 48,
+                    "max_items_per_category_default": 3,
+                    "min_items_per_category_default": 1,
+                    "scoring_weights": {"freshness": 0.45, "sourceCredibility": 0.3, "textRichness": 0.15, "diversity": 0.1},
+                    "extractive_rules": {
+                        "maxSentencesPerItem": 2,
+                        "minSentenceChars": 40,
+                        "maxSentenceChars": 220,
+                        "stripQuotesIfLong": True,
+                        "briefSecondsTarget": 20,
+                        "durationAlignmentEnabled": True,
+                    },
+                    "trim_policy": {"order": ["conclusion", "transitions", "lowestPriorityItem"], "stepSec": 15, "hardFloorSec": 540},
+                    "fallback_policy": {"ifTooShortAdd": ["whyItMatters", "watchNext"], "ifNoItems": "skipCategoryAndRebalance"},
+                },
+            )
+            self.assertEqual(settings_response.status_code, 200)
+
+            response = self.client.post(
+                "/api/generate/script",
+                json={"duration_target_minutes": 3, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["preview"]["brief_seconds"], 20)
+        self.assertIn("Concretement", payload["script"])
+
+        with patch.dict(os.environ, LLM_ENV, clear=False):
+            self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
     def test_invalid_deterministic_category_payload_is_rejected(self):
         response = self.client.put(

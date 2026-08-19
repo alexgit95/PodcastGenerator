@@ -275,6 +275,21 @@ def validate_deterministic_global_settings(settings: dict[str, Any]) -> dict[str
     if validated["min_items_per_category_default"] > validated["max_items_per_category_default"]:
         raise RuntimeSettingsError("DETERMINISTIC_MIN_ITEMS_PER_CATEGORY_DEFAULT must be <= max_items_per_category_default")
 
+    extractive_rules = dict(validated["extractive_rules"])
+    brief_seconds_target = _parse_positive_int(
+        extractive_rules.get("briefSecondsTarget", 45),
+        "DETERMINISTIC_BRIEF_SECONDS_TARGET",
+    )
+    if not (5 <= brief_seconds_target <= 180):
+        raise RuntimeSettingsError("DETERMINISTIC_BRIEF_SECONDS_TARGET must be between 5 and 180")
+
+    alignment_enabled_raw = extractive_rules.get("durationAlignmentEnabled", False)
+    alignment_enabled = bool(alignment_enabled_raw)
+
+    extractive_rules["briefSecondsTarget"] = brief_seconds_target
+    extractive_rules["durationAlignmentEnabled"] = alignment_enabled
+    validated["extractive_rules"] = extractive_rules
+
     return validated
 
 

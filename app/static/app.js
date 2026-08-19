@@ -220,7 +220,9 @@ function renderDeterministicSettings() {
   document.getElementById("det-extractive-max-sentences").value = coalesce(extractive.maxSentencesPerItem, 2);
   document.getElementById("det-extractive-min-chars").value = coalesce(extractive.minSentenceChars, 40);
   document.getElementById("det-extractive-max-chars").value = coalesce(extractive.maxSentenceChars, 220);
+  document.getElementById("det-brief-seconds").value = coalesce(extractive.briefSecondsTarget, 45);
   document.getElementById("det-extractive-strip-quotes").checked = Boolean(extractive.stripQuotesIfLong);
+  document.getElementById("det-duration-alignment-enabled").checked = Boolean(extractive.durationAlignmentEnabled);
 
   document.getElementById("det-trim-step").value = coalesce(trimPolicy.stepSec, 15);
   document.getElementById("det-trim-hard-floor").value = coalesce(trimPolicy.hardFloorSec, 540);
@@ -499,7 +501,9 @@ document.getElementById("deterministic-global-save").addEventListener("click", a
       maxSentencesPerItem: Number(document.getElementById("det-extractive-max-sentences").value),
       minSentenceChars: Number(document.getElementById("det-extractive-min-chars").value),
       maxSentenceChars: Number(document.getElementById("det-extractive-max-chars").value),
+      briefSecondsTarget: Number(document.getElementById("det-brief-seconds").value),
       stripQuotesIfLong: document.getElementById("det-extractive-strip-quotes").checked,
+      durationAlignmentEnabled: document.getElementById("det-duration-alignment-enabled").checked,
     };
     const extractiveAdvanced = safeParseJson(document.getElementById("det-extractive-json").value, {});
 

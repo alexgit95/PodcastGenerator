@@ -10,7 +10,7 @@ from .rss_collection import CollectedItem
 INTRO_SECONDS = 20
 CONCLUSION_SECONDS = 40
 TRANSITION_SECONDS = 10
-BRIEF_SECONDS = 45
+DEFAULT_BRIEF_SECONDS = 45
 
 
 @dataclass
@@ -43,6 +43,7 @@ def _allocate_initial_quota(weights: dict[str, int], budget_seconds: int) -> dic
 def _pick_briefs(
     items_by_category: dict[str, list[CollectedItem]],
     quota_seconds: dict[str, int],
+    brief_seconds: int,
 ) -> tuple[list[Brief], dict[str, int]]:
     now_utc = datetime.now(timezone.utc)
     used_keys: set[str] = set()
@@ -52,12 +53,12 @@ def _pick_briefs(
     for category_id, items in items_by_category.items():
         target_seconds = quota_seconds.get(category_id, 0)
         for item in items:
-            if used_seconds_by_category[category_id] + BRIEF_SECONDS > target_seconds:
+            if used_seconds_by_category[category_id] + brief_seconds > target_seconds:
                 break
             if item.item_key in used_keys:
                 continue
             used_keys.add(item.item_key)
-            used_seconds_by_category[category_id] += BRIEF_SECONDS
+            used_seconds_by_category[category_id] += brief_seconds
             selected.append(
                 Brief(
                     item_key=item.item_key,
@@ -80,17 +81,18 @@ def _redistribute_unused_quota(
     selected: list[Brief],
     used_seconds_by_category: dict[str, int],
     budget_seconds: int,
+    brief_seconds: int,
 ) -> list[Brief]:
     used_keys = {brief.item_key for brief in selected}
     selected_by_category: dict[str, list[Brief]] = {}
     for brief in selected:
         selected_by_category.setdefault(brief.category_id, []).append(brief)
 
-    consumed_seconds = len(selected) * BRIEF_SECONDS
+    consumed_seconds = len(selected) * brief_seconds
     remaining_seconds = max(0, budget_seconds - consumed_seconds)
     now_utc = datetime.now(timezone.utc)
 
-    while remaining_seconds >= BRIEF_SECONDS:
+    while remaining_seconds >= brief_seconds:
         candidates: list[tuple[float, str, CollectedItem]] = []
         for category_id, items in items_by_category.items():
             weight = max(1, weights.get(category_id, 1))
@@ -107,7 +109,7 @@ def _redistribute_unused_quota(
         candidates.sort(key=lambda row: row[0], reverse=True)
         _, category_id, item = candidates[0]
         used_keys.add(item.item_key)
-        used_seconds_by_category[category_id] = used_seconds_by_category.get(category_id, 0) + BRIEF_SECONDS
+        used_seconds_by_category[category_id] = used_seconds_by_category.get(category_id, 0) + brief_seconds
         selected_by_category.setdefault(category_id, []).append(
             Brief(
             item_key=item.item_key,
@@ -120,7 +122,7 @@ def _redistribute_unused_quota(
                 score=_article_score(item, now_utc),
             )
         )
-        remaining_seconds -= BRIEF_SECONDS
+        remaining_seconds -= brief_seconds
 
     flattened: list[Brief] = []
     for category_id in sorted(selected_by_category.keys()):
@@ -128,7 +130,7 @@ def _redistribute_unused_quota(
     return flattened
 
 
-def _build_sections(briefs: list[Brief]) -> dict[str, Any]:
+def _build_sections(briefs: list[Brief], brief_seconds: int) -> dict[str, Any]:
     grouped: dict[str, list[Brief]] = {}
     category_names: dict[str, str] = {}
     for brief in briefs:
@@ -160,7 +162,7 @@ def _build_sections(briefs: list[Brief]) -> dict[str, Any]:
                         "link": brief.link,
                         "source_title": brief.source_title,
                         "published_at": brief.published_at.isoformat(),
-                        "estimated_seconds": BRIEF_SECONDS,
+                        "estimated_seconds": brief_seconds,
                         "score": round(brief.score, 2),
                     }
                     for brief in grouped[category_id]
@@ -229,32 +231,36 @@ def build_episode_preview(
     items_by_category: dict[str, list[CollectedItem]],
     category_weights: dict[str, int],
     duration_target_minutes: int,
+    brief_seconds: int = DEFAULT_BRIEF_SECONDS,
 ) -> dict[str, Any]:
     target_seconds = max(60, duration_target_minutes * 60)
+    resolved_brief_seconds = max(5, int(brief_seconds))
 
     active_category_ids = [category_id for category_id, items in items_by_category.items() if items]
     active_weights = {category_id: category_weights.get(category_id, 1) for category_id in active_category_ids}
 
     transitions_budget = max(0, (len(active_category_ids) - 1) * TRANSITION_SECONDS)
     fixed_budget = INTRO_SECONDS + CONCLUSION_SECONDS + transitions_budget
-    content_budget = max(BRIEF_SECONDS, target_seconds - fixed_budget)
+    content_budget = max(resolved_brief_seconds, target_seconds - fixed_budget)
 
     quota = _allocate_initial_quota(active_weights, content_budget)
-    selected, used_seconds_by_category = _pick_briefs(items_by_category, quota)
+    selected, used_seconds_by_category = _pick_briefs(items_by_category, quota, resolved_brief_seconds)
     selected = _redistribute_unused_quota(
         items_by_category,
         active_weights,
         selected,
         used_seconds_by_category,
         content_budget,
+        resolved_brief_seconds,
     )
 
-    sections = _build_sections(selected)
+    sections = _build_sections(selected, resolved_brief_seconds)
     sections = _trim_overflow(sections, target_seconds)
 
     return {
         "duration_target_minutes": duration_target_minutes,
         "duration_target_seconds": target_seconds,
+        "brief_seconds": resolved_brief_seconds,
         "estimated_total_seconds": _estimate_total_seconds(sections),
         "quota_seconds_by_category": quota,
         "used_seconds_by_category": used_seconds_by_category,

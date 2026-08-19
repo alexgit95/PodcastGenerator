@@ -95,6 +95,37 @@ def _deterministic_conclusion() -> str:
     return "C'etait l'essentiel du jour. On se retrouve demain pour un nouveau point d'actualite."
 
 
+def _word_count(text: str) -> int:
+    if not text:
+        return 0
+    return len([token for token in text.replace("\n", " ").split(" ") if token.strip()])
+
+
+def _align_brief_text_length(
+    text: str,
+    *,
+    category_name: str,
+    title: str,
+    source_title: str,
+    target_words: int,
+) -> str:
+    # Keep a sane cap to avoid exploding script size on very high settings.
+    safe_target_words = max(18, min(180, int(target_words)))
+    aligned = text.strip()
+    fillers = [
+        "Concretement, ce sujet influence deja les usages sur le terrain et les priorites des equipes.",
+        "A court terme, l'enjeu principal reste la mise en application et le suivi des effets observables.",
+        f"Dans la rubrique {category_name}, {title} merite un suivi car les signaux evoluent rapidement.",
+        f"La source {source_title} souligne aussi des impacts pratiques a surveiller dans les prochains jours.",
+    ]
+
+    filler_index = 0
+    while _word_count(aligned) < safe_target_words and filler_index < 16:
+        aligned = f"{aligned} {fillers[filler_index % len(fillers)]}".strip()
+        filler_index += 1
+    return aligned
+
+
 def generate_script_with_deterministic_mode(
     *,
     preview: dict[str, Any],
@@ -105,6 +136,11 @@ def generate_script_with_deterministic_mode(
     category_settings_map = {item["category_id"]: item for item in deterministic_category_settings}
     global_max_items = int(deterministic_global_settings.get("max_items_per_category_default", 3) or 3)
     global_min_items = int(deterministic_global_settings.get("min_items_per_category_default", 1) or 1)
+    speech_rate_wpm = int(deterministic_global_settings.get("speech_rate_wpm", 155) or 155)
+    extractive_rules = deterministic_global_settings.get("extractive_rules") or {}
+    brief_seconds_target = int(extractive_rules.get("briefSecondsTarget", preview.get("brief_seconds", 45)) or 45)
+    duration_alignment_enabled = bool(extractive_rules.get("durationAlignmentEnabled", False))
+    words_per_brief_target = max(15, min(180, int((speech_rate_wpm * brief_seconds_target) / 60)))
     lines: list[str] = [_deterministic_intro()]
     sections = preview.get("sections", {})
 
@@ -113,8 +149,8 @@ def generate_script_with_deterministic_mode(
         category_name = category_section.get("category_name", "Categorie")
         settings = category_settings_map.get(category_id, {})
         templates = settings.get("templates") or {}
-        lead_in_template = templates.get("leadIn") or f"En {{category_name}}, premier point: {{title}}."
-        transition_out_template = templates.get("transitionOut") or "On passe au sujet suivant."
+        lead_in_template = templates.get("leadIn") or templates.get("intro") or f"En {{category_name}}, premier point: {{title}}."
+        transition_out_template = templates.get("transitionOut") or templates.get("transition") or "On passe au sujet suivant."
         briefs = category_section.get("briefs", [])
         effective_max_items = settings.get("max_items") or global_max_items
         effective_max_items = max(global_min_items, int(effective_max_items))
@@ -132,17 +168,24 @@ def generate_script_with_deterministic_mode(
         )
 
         for brief in briefs:
-            lines.append(
-                _render_template(
-                    templates.get("impact") or "Point cle: {title} (source: {source_title}).",
-                    {
-                        "category_name": category_name,
-                        "title": brief.get("title", ""),
-                        "source_title": brief.get("source_title", ""),
-                        "link": brief.get("link", ""),
-                    },
-                )
+            impact_line = _render_template(
+                templates.get("impact") or "Point cle: {title} (source: {source_title}).",
+                {
+                    "category_name": category_name,
+                    "title": brief.get("title", ""),
+                    "source_title": brief.get("source_title", ""),
+                    "link": brief.get("link", ""),
+                },
             )
+            if duration_alignment_enabled:
+                impact_line = _align_brief_text_length(
+                    impact_line,
+                    category_name=category_name,
+                    title=str(brief.get("title", "")),
+                    source_title=str(brief.get("source_title", "")),
+                    target_words=words_per_brief_target,
+                )
+            lines.append(impact_line)
 
         if index < len(sections.get("category_sections", [])) - 1:
             lines.append(
@@ -172,6 +215,8 @@ def generate_script_with_deterministic_mode(
             "global_settings": deterministic_global_settings,
             "category_settings": deterministic_category_settings,
             "effective_max_items_per_category_default": global_max_items,
+            "effective_brief_seconds_target": brief_seconds_target,
+            "duration_alignment_enabled": duration_alignment_enabled,
             "preview": preview,
         },
     }
