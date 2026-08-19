@@ -80,7 +80,7 @@ def build_script_prompt(preview: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def generate_script_with_economical_api(
+def _generate_with_openai_compatible_api(
     *,
     prompt_text: str,
     api_url: str,
@@ -141,3 +141,29 @@ def generate_script_with_economical_api(
             last_error = f"Unexpected error: {error}"
 
     raise ScriptGenerationError(last_error or "Script generation failed")
+
+
+def generate_script_with_single_provider(
+    *,
+    provider: str,
+    provider_adapter: str,
+    prompt_text: str,
+    api_url: str,
+    api_key: str,
+    api_model: str,
+    max_retries: int,
+    per_episode_token_cap: int,
+) -> dict[str, Any]:
+    if provider_adapter == "openai_compatible":
+        return _generate_with_openai_compatible_api(
+            prompt_text=prompt_text,
+            api_url=api_url,
+            api_key=api_key,
+            api_model=api_model,
+            max_retries=max_retries,
+            per_episode_token_cap=per_episode_token_cap,
+        )
+
+    raise ScriptGenerationError(
+        f"Unsupported provider adapter '{provider_adapter}' for provider '{provider}'"
+    )

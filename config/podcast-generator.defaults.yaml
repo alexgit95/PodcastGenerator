@@ -17,7 +17,7 @@ categories:
     ia: 20
 
 api:
-  provider: economical-fr
+  provider: openai
   model: gpt-4o-mini
   baseUrl: https://api.openai.com/v1/chat/completions
   perEpisodeTokenCap: 28000

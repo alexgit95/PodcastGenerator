@@ -35,7 +35,7 @@ from .repository import (
     update_source,
     update_source_health,
 )
-from .runtime_settings import load_runtime_settings
+from .runtime_settings import RuntimeSettingsError, load_runtime_settings, validate_runtime_settings
 from .rss_collection import collect_fresh_items
 from .rss_health import check_feed_health
 from .script_generation import (
@@ -43,14 +43,17 @@ from .script_generation import (
     build_script_prompt,
     estimate_cost_cents,
     estimate_tokens_from_text,
-    generate_script_with_economical_api,
+    generate_script_with_single_provider,
 )
 from .scheduling import ScheduleParseError, episodes_per_week_hint, next_run_times
 
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 ensure_database()
-RUNTIME_SETTINGS = load_runtime_settings()
+try:
+    RUNTIME_SETTINGS = validate_runtime_settings(load_runtime_settings())
+except RuntimeSettingsError as error:
+    raise RuntimeError(f"Invalid LLM provider configuration: {error}") from error
 
 
 def _compose_preview_from_payload(payload: dict, profile: dict):
@@ -360,7 +363,9 @@ def api_generate_script():
     )
 
     try:
-        generation = generate_script_with_economical_api(
+        generation = generate_script_with_single_provider(
+            provider=str(RUNTIME_SETTINGS["api_provider"]),
+            provider_adapter=str(RUNTIME_SETTINGS["provider_adapter"]),
             prompt_text=prompt_text,
             api_url=str(RUNTIME_SETTINGS["api_url"]),
             api_key=str(RUNTIME_SETTINGS["api_key"]),

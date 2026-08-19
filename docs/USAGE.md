@@ -18,6 +18,14 @@
 - Duree cible configurable
 - Si depassement: coupe conclusion puis transitions puis breves moins prioritaires
 - Controle cout: cap tokens/episode + cap budget mensuel
+- Provider LLM unique actif a la fois (pas de routage multi-provider simultane)
+- Changement de provider via configuration + restart/redeploy
+
+Politique operationnelle provider:
+
+- Une seule configuration provider est lue au demarrage.
+- Toutes les generations d'un run utilisent ce meme provider actif.
+- Pour changer de provider: mise a jour des variables provider puis restart/redeploy.
 
 ## 3. Endpoints API utiles
 
