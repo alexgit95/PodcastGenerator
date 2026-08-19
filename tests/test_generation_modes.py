@@ -122,6 +122,43 @@ class GenerationModeApiTests(unittest.TestCase):
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
+    def test_script_generation_no_longer_returns_audio_artifact(self):
+        with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            return_value={
+                "script": "script llm",
+                "usage": {"input_tokens": 12, "output_tokens": 34, "total_tokens": 46},
+                "raw": {},
+            },
+        ):
+            response = self.client.post(
+                "/api/generate/script",
+                json={"duration_target_minutes": 1, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertNotIn("audio", payload)
+        self.assertEqual(payload["script"], "script llm")
+
+    def test_audio_generation_requires_script_text_and_uses_separate_endpoint(self):
+        with patch.dict(os.environ, LLM_ENV, clear=False), patch.object(
+            main_module,
+            "generate_local_mp3",
+            return_value={
+                "audio_file_name": "job-1.mp3",
+                "audio_download_url": "/api/generation-jobs/job-1/audio",
+                "audio_format": "mp3",
+                "audio_mode_used": "local",
+            },
+        ):
+            response = self.client.post("/api/generate/audio", json={"script_text": "Bonjour"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["audio"]["audio_download_url"], "/api/generation-jobs/job-1/audio")
+
     def test_invalid_mode_payload_is_rejected(self):
         response = self.client.put("/api/settings/mode", json={"generation_mode": "hybrid"})
         self.assertEqual(response.status_code, 400)

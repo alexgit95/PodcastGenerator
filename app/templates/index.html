@@ -62,8 +62,13 @@
           <button id="duration-save" type="button">Sauver duree cible</button>
           <button id="preview-run" type="button">Previsualiser composition</button>
           <button id="generate-run" type="button">Generer script</button>
+          <button id="generate-audio-run" type="button">Generer audio</button>
         </div>
         <p class="hint">Le depassement coupe d'abord la conclusion puis les transitions.</p>
+        <div class="progress-shell" aria-hidden="true">
+          <div id="generation-progress" class="progress-bar"></div>
+        </div>
+        <p id="generation-progress-label" class="hint">Pret</p>
         <pre id="preview-output" class="preview">Aucune previsualisation</pre>
         <h3>Script genere</h3>
         <div class="inline-form">

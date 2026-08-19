@@ -70,13 +70,15 @@ Utilisation du mode generation dans l'interface:
 2. Choisir `LLM` ou `Sans LLM` puis sauver le mode.
 3. En mode `Sans LLM`, ouvrir `Matrice deterministe` pour ajuster la configuration globale et les overrides par categorie.
 4. Chaque nouvelle categorie recoit un override deterministe par defaut, modifiable ensuite dans sa carte.
+5. Le bouton `Generer script` lance uniquement la generation du texte et affiche une barre de progression pendant le traitement.
 
 Utilisation du mode audio dans l'interface:
 
 1. Ouvrir le panneau `Mode generation` dans l'administration.
 2. Choisir `Audio local (Piper)` ou `Audio cloud` puis sauver le mode audio.
-3. En mode local, le MP3 est genere avec Piper puis un lien de telechargement apparait sous le script.
-4. Le telechargement pointe vers le meme ecran que la visualisation du script, pour rester dans un seul flux operateur.
+3. Generer d'abord le script, puis cliquer sur `Generer audio` pour produire le MP3.
+4. En mode local, le MP3 est genere avec Piper puis un lien de telechargement apparait sous le script.
+5. Le telechargement pointe vers le meme ecran que la visualisation du script, pour rester dans un seul flux operateur.
 
 Comportement important:
 

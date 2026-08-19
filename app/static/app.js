@@ -19,10 +19,17 @@ const state = {
 };
 
 const statusNode = document.getElementById("status");
+const progressBarNode = document.getElementById("generation-progress");
+const progressLabelNode = document.getElementById("generation-progress-label");
 
 function setStatus(message, isError = false) {
   statusNode.textContent = message;
   statusNode.className = isError ? "error" : "ok";
+}
+
+function setProgressState(active, label = "") {
+  progressBarNode.classList.toggle("active", active);
+  progressLabelNode.textContent = label || (active ? "En cours" : "Pret");
 }
 
 function safeParseJson(text, fallback = null) {
@@ -235,20 +242,8 @@ function renderGeneratedScript(payload) {
   const audioDownload = document.getElementById("audio-download");
   const header = `Mode: ${payload.mode_used || "n/a"} | Job: ${payload.job_id || "n/a"}`;
   output.textContent = `${header}\n\n${payload.script || "(script vide)"}`;
-
-  const audio = payload.audio || {};
-  if (audio.status === "ok" && audio.download_url) {
-    audioStatus.textContent = `Audio genere en mode ${audio.mode_used || "local"}.`;
-    audioDownload.href = audio.download_url;
-    audioDownload.download = audio.file_name || `${payload.job_id || "audio"}.mp3`;
-    audioDownload.hidden = false;
-  } else if (audio.status === "error") {
-    audioStatus.textContent = `Audio indisponible: ${audio.error || "erreur inconnue"}`;
-    audioDownload.hidden = true;
-  } else {
-    audioStatus.textContent = "Aucun audio genere";
-    audioDownload.hidden = true;
-  }
+  audioStatus.textContent = "Aucun audio genere";
+  audioDownload.hidden = true;
 }
 
 function generatedScriptTextOnly() {
@@ -540,6 +535,13 @@ document.getElementById("preview-run").addEventListener("click", async () => {
 });
 
 document.getElementById("generate-run").addEventListener("click", async () => {
+  const button = document.getElementById("generate-run");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Generation en cours...";
+  setStatus("Generation du script en cours...");
+  setProgressState(true, "Generation du script...");
+
   try {
     const categoryIds = state.categories.filter((item) => Boolean(item.enabled)).map((item) => item.id);
     const response = await api("/api/generate/script", {
@@ -554,6 +556,52 @@ document.getElementById("generate-run").addEventListener("click", async () => {
     setStatus("Script genere avec succes");
   } catch (error) {
     setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+    setProgressState(false, "Pret");
+  }
+});
+
+document.getElementById("generate-audio-run").addEventListener("click", async () => {
+  const button = document.getElementById("generate-audio-run");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Generation audio en cours...";
+  setStatus("Generation de l'audio en cours...");
+  setProgressState(true, "Generation de l'audio...");
+
+  try {
+    const scriptText = generatedScriptTextOnly();
+    if (!scriptText || scriptText === "Aucun script genere") {
+      setStatus("Generer d'abord un script", true);
+      return;
+    }
+    const response = await api("/api/generate/audio", {
+      method: "POST",
+      body: JSON.stringify({ script_text: scriptText }),
+    });
+    const audio = response.audio || {};
+    const audioStatus = document.getElementById("audio-status");
+    const audioDownload = document.getElementById("audio-download");
+    if (audio.status === "ok" && audio.download_url) {
+      audioStatus.textContent = `Audio genere en mode ${audio.mode_used || "local"}.`;
+      audioDownload.href = audio.download_url;
+      audioDownload.download = audio.file_name || `${response.job_id || "audio"}.mp3`;
+      audioDownload.hidden = false;
+      setStatus("Audio genere avec succes");
+    } else {
+      audioStatus.textContent = `Audio indisponible: ${audio.error || "erreur inconnue"}`;
+      audioDownload.hidden = true;
+      setStatus(audio.error || "Audio indisponible", true);
+    }
+    await reloadOps();
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+    setProgressState(false, "Pret");
   }
 });
 
