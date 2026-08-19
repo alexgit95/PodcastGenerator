@@ -80,6 +80,8 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/arm64
+          build-args: |
+            BUILD_COMMIT_SHA=${{ github.sha }}
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/podcast-generator:${{ steps.branch_tag.outputs.value }}
 
       - name: Build and push - main
@@ -90,6 +92,8 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/arm64
+          build-args: |
+            BUILD_COMMIT_SHA=${{ github.sha }}
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/podcast-generator:latest
 
       - name: Build and push - git tag
@@ -100,6 +104,8 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/arm64
+          build-args: |
+            BUILD_COMMIT_SHA=${{ github.sha }}
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/podcast-generator:${{ github.ref_name }}
             ${{ secrets.DOCKERHUB_USERNAME }}/podcast-generator:latest

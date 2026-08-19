@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from flask import Flask, jsonify, render_template, request, send_file
 from sqlite3 import IntegrityError
 
@@ -79,6 +80,16 @@ def _current_profile() -> dict:
     return get_or_create_default_profile()
 
 
+def _build_version_payload() -> dict:
+    commit_sha = str(os.getenv("PODCAST_BUILD_COMMIT_SHA", "unknown") or "unknown").strip() or "unknown"
+    commit_short = commit_sha[:7] if commit_sha != "unknown" else "unknown"
+    return {
+        "commit_sha": commit_sha,
+        "commit_short": commit_short,
+        "source": "env",
+    }
+
+
 def _compose_preview_from_payload(payload: dict, profile: dict):
     requested_category_ids = payload.get("category_ids")
 
@@ -139,6 +150,11 @@ def _compose_preview_from_payload(payload: dict, profile: dict):
 @app.get("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/api/version")
+def api_version():
+    return jsonify(_build_version_payload())
 
 
 @app.get("/api/categories")

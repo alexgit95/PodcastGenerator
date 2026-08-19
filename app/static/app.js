@@ -14,6 +14,11 @@ const state = {
     schedule_cron: "0 8 * * 1,3,5",
     timezone: "Europe/Paris",
   },
+    version: {
+      commit_sha: "unknown",
+      commit_short: "unknown",
+      source: "env",
+    },
   budgetStatus: null,
   jobs: [],
 };
@@ -438,6 +443,7 @@ async function reloadAll() {
   document.getElementById("duration-target").value = state.settings.duration_target_minutes;
   document.getElementById("schedule-cron").value = state.settings.schedule_cron;
   document.getElementById("schedule-timezone").value = state.settings.timezone;
+  await reloadVersion();
   renderScheduleSummary(state.settings);
   await reloadOps();
 }
@@ -445,6 +451,32 @@ async function reloadAll() {
 function renderPreview(preview) {
   const output = document.getElementById("preview-output");
   output.textContent = JSON.stringify(preview, null, 2);
+}
+
+function renderBuildVersion() {
+  const node = document.getElementById("build-version");
+  if (!node) {
+    return;
+  }
+  const shortSha = state.version && state.version.commit_short ? state.version.commit_short : "unknown";
+  node.textContent = `Version: ${shortSha}`;
+}
+
+async function reloadVersion() {
+  try {
+    const version = await api("/api/version");
+    state.version = {
+      ...state.version,
+      ...version,
+    };
+  } catch (_error) {
+    state.version = {
+      commit_sha: "unknown",
+      commit_short: "unknown",
+      source: "fallback",
+    };
+  }
+  renderBuildVersion();
 }
 
 function renderGeneratedScript(payload) {

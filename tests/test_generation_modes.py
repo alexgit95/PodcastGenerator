@@ -174,6 +174,24 @@ class GenerationModeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("generation_mode", response.get_json()["error"])
 
+    def test_version_endpoint_returns_fallback_when_env_missing(self):
+        with patch.dict(os.environ, {"PODCAST_BUILD_COMMIT_SHA": ""}, clear=False):
+            response = self.client.get("/api/version")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["commit_sha"], "unknown")
+        self.assertEqual(payload["commit_short"], "unknown")
+
+    def test_version_endpoint_returns_short_sha_from_env(self):
+        with patch.dict(os.environ, {"PODCAST_BUILD_COMMIT_SHA": "abcdef1234567890"}, clear=False):
+            response = self.client.get("/api/version")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["commit_sha"], "abcdef1234567890")
+        self.assertEqual(payload["commit_short"], "abcdef1")
+
     def test_invalid_deterministic_global_payload_is_rejected(self):
         response = self.client.put(
             "/api/settings/deterministic/global",

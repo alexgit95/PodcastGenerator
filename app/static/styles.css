@@ -38,6 +38,18 @@ header p {
   color: var(--muted);
 }
 
+.build-version {
+  display: inline-flex;
+  margin-top: 0.55rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 main.grid {
   display: grid;
   gap: 1rem;
