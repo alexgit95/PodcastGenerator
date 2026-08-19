@@ -142,13 +142,13 @@ class GenerationModeApiTests(unittest.TestCase):
 
             response = self.client.post(
                 "/api/generate/script",
-                json={"duration_target_minutes": 1, "category_ids": [self.category["id"]]},
+                json={"duration_target_minutes": 3, "category_ids": [self.category["id"]]},
             )
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["mode_used"], "deterministic")
-        self.assertIn("Bonjour", payload["script"])
+        self.assertIn("Fresh item A", payload["script"])
 
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
