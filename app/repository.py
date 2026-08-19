@@ -803,7 +803,7 @@ def get_latest_successful_audio_job(profile_id: str) -> dict[str, Any] | None:
             SELECT id, profile_id, job_type, status, started_at, finished_at, details_json
             FROM generation_jobs
             WHERE profile_id = ? AND job_type = 'audio_generation' AND status = 'succeeded'
-            ORDER BY COALESCE(finished_at, started_at) DESC
+            ORDER BY COALESCE(finished_at, started_at) DESC, rowid DESC
             LIMIT 1
             """,
             (profile_id,),
