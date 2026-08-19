@@ -582,18 +582,22 @@ document.getElementById("generate-audio-run").addEventListener("click", async ()
       body: JSON.stringify({ script_text: scriptText }),
     });
     const audio = response.audio || {};
+    const downloadUrl = audio.download_url || audio.audio_download_url;
+    const fileName = audio.file_name || audio.audio_file_name;
+    const modeUsed = audio.mode_used || audio.audio_mode_used || response.mode_used || "local";
+    const audioError = audio.error || response.error;
     const audioStatus = document.getElementById("audio-status");
     const audioDownload = document.getElementById("audio-download");
-    if (audio.status === "ok" && audio.download_url) {
-      audioStatus.textContent = `Audio genere en mode ${audio.mode_used || "local"}.`;
-      audioDownload.href = audio.download_url;
-      audioDownload.download = audio.file_name || `${response.job_id || "audio"}.mp3`;
+    if (response.status === "ok" && downloadUrl) {
+      audioStatus.textContent = `Audio genere en mode ${modeUsed}.`;
+      audioDownload.href = downloadUrl;
+      audioDownload.download = fileName || `${response.job_id || "audio"}.mp3`;
       audioDownload.hidden = false;
       setStatus("Audio genere avec succes");
     } else {
-      audioStatus.textContent = `Audio indisponible: ${audio.error || "erreur inconnue"}`;
+      audioStatus.textContent = `Audio indisponible: ${audioError || "erreur inconnue"}`;
       audioDownload.hidden = true;
-      setStatus(audio.error || "Audio indisponible", true);
+      setStatus(audioError || "Audio indisponible", true);
     }
     await reloadOps();
   } catch (error) {

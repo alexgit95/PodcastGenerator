@@ -646,10 +646,23 @@ def api_generate_audio():
         {"mode_used": audio_generation_mode},
     )
     try:
-        audio = generate_local_mp3(script_text, job_id)
+        audio_raw = generate_local_mp3(script_text, job_id)
     except AudioGenerationError as error:
         update_generation_job(job_id, "failed", {"error": str(error), "mode_used": audio_generation_mode})
         return jsonify({"status": "audio_generation_error", "job_id": job_id, "error": str(error)}), 502
+
+    audio = {
+        "status": "ok",
+        "mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
+        "download_url": audio_raw.get("audio_download_url"),
+        "file_name": audio_raw.get("audio_file_name"),
+        "format": audio_raw.get("audio_format", "mp3"),
+        # Backward-compatible aliases
+        "audio_download_url": audio_raw.get("audio_download_url"),
+        "audio_file_name": audio_raw.get("audio_file_name"),
+        "audio_format": audio_raw.get("audio_format", "mp3"),
+        "audio_mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
+    }
 
     update_generation_job(
         job_id,
