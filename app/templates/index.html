@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Podcast Generator - Admin</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Podcast Generator</h1>
+      <p>Pilotage des categories, flux RSS et mappings</p>
+    </header>
+
+    <main class="grid">
+      <section class="panel panel-wide">
+        <h2>Planification</h2>
+        <div class="inline-form">
+          <input type="text" id="schedule-cron" placeholder="0 8 * * 1,3,5" />
+          <input type="text" id="schedule-timezone" placeholder="Europe/Paris" />
+          <button id="schedule-save" type="button">Sauver planification</button>
+          <button id="schedule-refresh" type="button">Rafraichir</button>
+        </div>
+        <p id="schedule-summary" class="hint"></p>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Composition episode</h2>
+        <div class="inline-form">
+          <button id="duration-minus" type="button">-1 min</button>
+          <input type="number" id="duration-target" min="1" value="10" />
+          <button id="duration-plus" type="button">+1 min</button>
+          <button id="duration-save" type="button">Sauver duree cible</button>
+          <button id="preview-run" type="button">Previsualiser composition</button>
+        </div>
+        <p class="hint">Le depassement coupe d'abord la conclusion puis les transitions.</p>
+        <pre id="preview-output" class="preview">Aucune previsualisation</pre>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Operations</h2>
+        <div class="inline-form">
+          <button id="ops-refresh" type="button">Rafraichir statut</button>
+        </div>
+        <pre id="budget-output" class="preview">Budget: inconnu</pre>
+        <pre id="jobs-output" class="preview">Jobs: aucun</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Categories</h2>
+        <form id="category-form" class="stack">
+          <input type="text" id="category-name" placeholder="Nom categorie" required />
+          <input type="text" id="category-description" placeholder="Description" />
+          <input type="number" id="category-weight" min="1" value="1" required />
+          <label>
+            <input type="checkbox" id="category-enabled" checked /> Active
+          </label>
+          <button type="submit">Ajouter categorie</button>
+        </form>
+        <ul id="category-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Flux RSS</h2>
+        <form id="source-form" class="stack">
+          <input type="url" id="source-url" placeholder="https://.../feed.xml" required />
+          <input type="text" id="source-title" placeholder="Titre" />
+          <label>
+            <input type="checkbox" id="source-enabled" checked /> Actif
+          </label>
+          <button type="submit">Ajouter flux</button>
+        </form>
+        <ul id="source-list"></ul>
+      </section>
+
+      <section class="panel panel-wide">
+        <h2>Mappings categorie -> flux</h2>
+        <form id="mapping-form" class="inline-form">
+          <select id="mapping-category" required></select>
+          <select id="mapping-source" required></select>
+          <button type="submit">Associer</button>
+        </form>
+        <ul id="mapping-list"></ul>
+      </section>
+    </main>
+
+    <p id="status"></p>
+    <script src="/static/app.js"></script>
+  </body>
+  </html>

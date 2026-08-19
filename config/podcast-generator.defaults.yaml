@@ -1,0 +1,33 @@
+app:
+  locale: fr-FR
+
+episode:
+  targetDurationMinutes: 10
+  freshnessWindowHours: 48
+  overflowTrimOrder:
+    - conclusion
+    - transitions
+    - lowPriorityBriefs
+
+categories:
+  defaultWeight: 1
+  weights:
+    tech: 50
+    economie: 30
+    ia: 20
+
+api:
+  provider: economical-fr
+  model: gpt-4o-mini
+  baseUrl: https://api.openai.com/v1/chat/completions
+  perEpisodeTokenCap: 28000
+  monthlyBudgetEuroCents: 100
+  maxRetries: 1
+  maxPromptChars: 20000
+  inputCentsPerMillion: 15
+  outputCentsPerMillion: 60
+
+schedule:
+  defaultEpisodesPerWeek: 3
+  timezone: Europe/Paris
+  cron: "0 8 * * 1,3,5"

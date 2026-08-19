@@ -1,0 +1,150 @@
+:root {
+  --bg: #f4f7ef;
+  --ink: #1f2d1b;
+  --muted: #5d6b59;
+  --panel: #ffffff;
+  --line: #d8e1ce;
+  --accent: #2d6a4f;
+  --accent-2: #40916c;
+  --danger: #9d0208;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top right, #dce9d5, var(--bg));
+  min-height: 100vh;
+}
+
+header {
+  padding: 1.25rem 1rem 0.5rem;
+}
+
+header h1 {
+  margin: 0;
+}
+
+header p {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+}
+
+main.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  padding: 1rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(45, 106, 79, 0.08);
+}
+
+.panel-wide {
+  grid-column: 1 / -1;
+}
+
+.stack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.hint {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--muted);
+}
+
+.preview {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #f9fbf7;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+input,
+select,
+button {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+}
+
+button {
+  border-color: var(--accent);
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  color: white;
+  cursor: pointer;
+}
+
+ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+}
+
+.actions button:last-child {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+#status {
+  margin: 0 1rem 1rem;
+  font-weight: 600;
+}
+
+#status.ok {
+  color: var(--accent);
+}
+
+#status.error {
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .item {
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+}
