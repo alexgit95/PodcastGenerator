@@ -252,7 +252,10 @@ class GenerationModeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["preview"]["brief_seconds"], 20)
-        self.assertIn("Concretement", payload["script"])
+        brief_lines = [line for line in payload["script"].splitlines() if "Fresh item" in line]
+        self.assertTrue(brief_lines)
+        # With alignment enabled, at least one brief line should be expanded beyond a short one-liner.
+        self.assertTrue(any(len(line.split()) >= 18 for line in brief_lines))
 
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
