@@ -10,6 +10,7 @@
 6. Regler la duree cible
 7. Lancer une previsualisation de composition
 8. Generer le script via API economique
+9. Generer l'audio manuellement ou recuperer le dernier audio genere
 
 ## 2. Regles metier en place
 
@@ -65,6 +66,9 @@ Politique operationnelle provider:
 
 - `POST /api/compose/preview`
 - `POST /api/generate/script`
+- `POST /api/generate/audio`
+- `POST /api/generate/scheduled`
+- `GET /api/generate/audio/latest`
 
 ### Settings et observabilite
 
@@ -91,6 +95,20 @@ curl -X POST http://localhost:8080/api/compose/preview \
 curl -X POST http://localhost:8080/api/generate/script \
   -H "Content-Type: application/json" \
   -d '{"duration_target_minutes": 10}'
+```
+
+### Generation planifiee (script puis audio)
+
+```bash
+curl -X POST http://localhost:8080/api/generate/scheduled \
+  -H "Content-Type: application/json" \
+  -d '{"duration_target_minutes": 10}'
+```
+
+### Recuperer le dernier audio genere
+
+```bash
+curl http://localhost:8080/api/generate/audio/latest
 ```
 
 ### Statut budget

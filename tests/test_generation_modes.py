@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 LLM_ENV = {
@@ -168,6 +170,123 @@ class GenerationModeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["audio"]["audio_download_url"], "/api/generation-jobs/job-1/audio")
+
+    def test_scheduled_generation_runs_script_then_audio_in_local_mode(self):
+        with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            return_value={
+                "script": "script llm cron",
+                "usage": {"input_tokens": 12, "output_tokens": 34, "total_tokens": 46},
+                "raw": {},
+            },
+        ), patch.object(
+            main_module,
+            "generate_local_mp3",
+            return_value={
+                "audio_file_name": "job-1.mp3",
+                "audio_download_url": "/api/generation-jobs/job-1/audio",
+                "audio_format": "mp3",
+                "audio_mode_used": "local",
+            },
+        ):
+            self.client.put("/api/settings/audio-mode", json={"audio_generation_mode": "local"})
+            response = self.client.post(
+                "/api/generate/scheduled",
+                json={"duration_target_minutes": 1, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["script_stage"]["status"], "succeeded")
+        self.assertEqual(payload["audio_stage"]["status"], "succeeded")
+        self.assertEqual(payload["audio_stage"]["audio"]["audio_download_url"], "/api/generation-jobs/job-1/audio")
+
+    def test_scheduled_generation_blocks_audio_stage_in_cloud_mode(self):
+        with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            return_value={
+                "script": "script llm cron",
+                "usage": {"input_tokens": 12, "output_tokens": 34, "total_tokens": 46},
+                "raw": {},
+            },
+        ):
+            self.client.put("/api/settings/audio-mode", json={"audio_generation_mode": "cloud"})
+            response = self.client.post(
+                "/api/generate/scheduled",
+                json={"duration_target_minutes": 1, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "partial_success")
+        self.assertEqual(payload["script_stage"]["status"], "succeeded")
+        self.assertEqual(payload["audio_stage"]["status"], "blocked")
+        self.assertEqual(payload["audio_stage"]["mode_used"], "cloud")
+        self.assertIn("audio_mode_not_local", payload["audio_stage"]["reason"])
+
+        with patch.dict(os.environ, LLM_ENV, clear=False):
+            self.client.put("/api/settings/audio-mode", json={"audio_generation_mode": "local"})
+
+    def test_latest_audio_endpoint_returns_latest_downloadable_audio(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+
+            def _fake_generate_local_mp3(_script_text: str, job_id: str):
+                (output_dir / f"{job_id}.mp3").write_bytes(b"mp3")
+                return {
+                    "audio_file_name": f"{job_id}.mp3",
+                    "audio_download_url": f"/api/generation-jobs/{job_id}/audio",
+                    "audio_format": "mp3",
+                    "audio_mode_used": "local",
+                }
+
+            with patch.object(main_module, "AUDIO_OUTPUT_DIR", output_dir), patch.object(
+                main_module,
+                "generate_local_mp3",
+                side_effect=_fake_generate_local_mp3,
+            ):
+                generate_response = self.client.post("/api/generate/audio", json={"script_text": "Bonjour"})
+                self.assertEqual(generate_response.status_code, 200)
+
+                latest_response = self.client.get("/api/generate/audio/latest")
+
+            self.assertEqual(latest_response.status_code, 200)
+            payload = latest_response.get_json()
+            generated_job_id = generate_response.get_json()["job_id"]
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["job_id"], generated_job_id)
+            self.assertEqual(payload["download_url"], f"/api/generation-jobs/{generated_job_id}/audio")
+
+    def test_latest_audio_endpoint_reports_missing_artifact(self):
+        profile = repository.get_or_create_default_profile()
+        audio_job_id = repository.create_generation_job(
+            profile["id"],
+            "audio_generation",
+            "running",
+            {"mode_used": "local"},
+        )
+        repository.update_generation_job(
+            audio_job_id,
+            "succeeded",
+            {
+                "mode_used": "local",
+                "audio": {
+                    "audio_file_name": f"{audio_job_id}.mp3",
+                    "audio_download_url": f"/api/generation-jobs/{audio_job_id}/audio",
+                    "audio_format": "mp3",
+                    "audio_mode_used": "local",
+                },
+            },
+        )
+
+        response = self.client.get("/api/generate/audio/latest")
+        self.assertEqual(response.status_code, 404)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "not_found")
+        self.assertEqual(payload["reason"], "audio_artifact_missing")
 
     def test_invalid_mode_payload_is_rejected(self):
         response = self.client.put("/api/settings/mode", json={"generation_mode": "hybrid"})

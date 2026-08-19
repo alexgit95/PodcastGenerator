@@ -81,6 +81,8 @@ Utilisation du mode audio dans l'interface:
 3. Generer d'abord le script, puis cliquer sur `Generer audio` pour produire le MP3.
 4. En mode local, le MP3 est genere avec Piper puis un lien de telechargement apparait sous le script.
 5. Le telechargement pointe vers le meme ecran que la visualisation du script, pour rester dans un seul flux operateur.
+6. Le badge d'origine audio distingue visuellement un audio genere manuellement d'un audio produit par une execution planifiee.
+7. Le bouton `Recuperer le dernier audio genere` recharge le dernier artefact disponible, y compris ceux issus des runs planifies.
 
 Comportement important:
 
@@ -136,7 +138,13 @@ Verification rapide apres configuration:
 
 1. Redemarrer l'application (ou redeployer le conteneur).
 2. Appeler `GET /api/budget-status` pour verifier que l'API repond.
-3. Lancer `POST /api/generate/script` pour valider la chaine complete.
+3. Lancer `POST /api/generate/scheduled` pour valider la chaine complete script puis audio.
+
+Execution cron recommandee:
+
+1. Configurer le cron externe pour appeler `POST /api/generate/scheduled`.
+2. Ne plus utiliser `POST /api/generate/script` pour les runs planifies, car cet endpoint ne couvre que l'etape texte.
+3. Utiliser `GET /api/generate/audio/latest` pour recuperer le dernier artefact MP3 produit.
 
 ## 4. Initialisation base
 

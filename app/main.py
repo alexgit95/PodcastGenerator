@@ -23,6 +23,8 @@ from .repository import (
     delete_source,
     get_deterministic_category_setting,
     get_deterministic_global_settings,
+    get_generation_job,
+    get_latest_successful_audio_job,
     list_deterministic_category_settings,
     get_monthly_spend,
     get_or_create_default_profile,
@@ -88,6 +90,97 @@ def _build_version_payload() -> dict:
         "commit_short": commit_short,
         "source": "env",
     }
+
+
+def _run_audio_generation_job(profile: dict, script_text: str, *, trigger_origin: str) -> tuple[dict, int]:
+    audio_generation_mode = str(profile.get("audio_generation_mode", "local")).strip().lower() or "local"
+    if audio_generation_mode != "local":
+        job_id = create_generation_job(
+            profile["id"],
+            "audio_generation",
+            "blocked",
+            {
+                "reason": "audio_mode_not_local",
+                "mode_used": audio_generation_mode,
+                "trigger_origin": trigger_origin,
+            },
+        )
+        return (
+            {
+                "status": "audio_mode_blocked",
+                "job_id": job_id,
+                "mode_used": audio_generation_mode,
+                "reason": "audio_mode_not_local",
+                "trigger_origin": trigger_origin,
+            },
+            409,
+        )
+
+    job_id = create_generation_job(
+        profile["id"],
+        "audio_generation",
+        "running",
+        {
+            "mode_used": audio_generation_mode,
+            "trigger_origin": trigger_origin,
+        },
+    )
+    try:
+        audio_raw = generate_local_mp3(script_text, job_id)
+    except AudioGenerationError as error:
+        update_generation_job(
+            job_id,
+            "failed",
+            {
+                "error": str(error),
+                "mode_used": audio_generation_mode,
+                "trigger_origin": trigger_origin,
+            },
+        )
+        return (
+            {
+                "status": "audio_generation_error",
+                "job_id": job_id,
+                "error": str(error),
+                "mode_used": audio_generation_mode,
+                "trigger_origin": trigger_origin,
+            },
+            502,
+        )
+
+    audio = {
+        "status": "ok",
+        "mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
+        "download_url": audio_raw.get("audio_download_url"),
+        "file_name": audio_raw.get("audio_file_name"),
+        "format": audio_raw.get("audio_format", "mp3"),
+        # Backward-compatible aliases
+        "audio_download_url": audio_raw.get("audio_download_url"),
+        "audio_file_name": audio_raw.get("audio_file_name"),
+        "audio_format": audio_raw.get("audio_format", "mp3"),
+        "audio_mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
+        "trigger_origin": trigger_origin,
+    }
+
+    update_generation_job(
+        job_id,
+        "succeeded",
+        {
+            "mode_used": audio_generation_mode,
+            "trigger_origin": trigger_origin,
+            "audio": audio,
+        },
+    )
+    return (
+        {
+            "status": "ok",
+            "job_id": job_id,
+            "audio": audio,
+            "mode_used": audio_generation_mode,
+            "trigger_origin": trigger_origin,
+        },
+        200,
+    )
 
 
 def _compose_preview_from_payload(payload: dict, profile: dict):
@@ -664,50 +757,126 @@ def api_generate_audio():
         return jsonify({"error": "script_text is required"}), 400
 
     profile = get_or_create_default_profile()
-    audio_generation_mode = str(profile.get("audio_generation_mode", "local")).strip().lower() or "local"
-    if audio_generation_mode != "local":
-        job_id = create_generation_job(
-            profile["id"],
-            "audio_generation",
-            "blocked",
-            {"reason": "audio_mode_not_local", "mode_used": audio_generation_mode},
+    response_payload, response_status = _run_audio_generation_job(profile, script_text, trigger_origin="manual")
+    return jsonify(response_payload), response_status
+
+
+@app.post("/api/generate/scheduled")
+def api_generate_scheduled():
+    script_response = app.make_response(api_generate_script())
+    script_status = int(script_response.status_code)
+    script_payload = script_response.get_json(silent=True) or {}
+    script_job_id = script_payload.get("job_id")
+
+    if script_status != 200 or not script_payload.get("script"):
+        return (
+            jsonify(
+                {
+                    "status": "script_stage_incomplete",
+                    "script_stage": {
+                        "status": script_payload.get("status", "failed"),
+                        "http_status": script_status,
+                        "job_id": script_job_id,
+                        "mode_used": script_payload.get("mode_used"),
+                        "reason": script_payload.get("reason") or script_payload.get("error"),
+                    },
+                    "audio_stage": {
+                        "status": "skipped",
+                        "reason": "script_stage_not_succeeded",
+                    },
+                }
+            ),
+            script_status,
         )
-        return jsonify({"status": "audio_mode_blocked", "job_id": job_id, "mode_used": audio_generation_mode}), 409
 
-    job_id = create_generation_job(
-        profile["id"],
-        "audio_generation",
-        "running",
-        {"mode_used": audio_generation_mode},
+    profile = get_or_create_default_profile()
+    audio_payload, audio_status = _run_audio_generation_job(
+        profile,
+        script_payload.get("script", ""),
+        trigger_origin="scheduled",
     )
-    try:
-        audio_raw = generate_local_mp3(script_text, job_id)
-    except AudioGenerationError as error:
-        update_generation_job(job_id, "failed", {"error": str(error), "mode_used": audio_generation_mode})
-        return jsonify({"status": "audio_generation_error", "job_id": job_id, "error": str(error)}), 502
 
-    audio = {
-        "status": "ok",
-        "mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
-        "download_url": audio_raw.get("audio_download_url"),
-        "file_name": audio_raw.get("audio_file_name"),
-        "format": audio_raw.get("audio_format", "mp3"),
-        # Backward-compatible aliases
-        "audio_download_url": audio_raw.get("audio_download_url"),
-        "audio_file_name": audio_raw.get("audio_file_name"),
-        "audio_format": audio_raw.get("audio_format", "mp3"),
-        "audio_mode_used": audio_raw.get("audio_mode_used", audio_generation_mode),
+    script_stage = {
+        "status": "succeeded",
+        "http_status": script_status,
+        "job_id": script_job_id,
+        "mode_used": script_payload.get("mode_used"),
+    }
+    if script_job_id:
+        existing_script_job = get_generation_job(script_job_id)
+        if existing_script_job:
+            details = dict(existing_script_job.get("details") or {})
+            details["trigger_origin"] = "scheduled"
+            details["audio_stage"] = {
+                "status": "succeeded" if audio_status == 200 else ("blocked" if audio_status == 409 else "failed"),
+                "job_id": audio_payload.get("job_id"),
+                "mode_used": audio_payload.get("mode_used"),
+                "reason": audio_payload.get("reason") or audio_payload.get("error"),
+            }
+            update_generation_job(script_job_id, str(existing_script_job.get("status") or "succeeded"), details)
+
+    audio_stage = {
+        "status": "succeeded" if audio_status == 200 else ("blocked" if audio_status == 409 else "failed"),
+        "http_status": audio_status,
+        "job_id": audio_payload.get("job_id"),
+        "mode_used": audio_payload.get("mode_used"),
+        "reason": audio_payload.get("reason") or audio_payload.get("error"),
     }
 
-    update_generation_job(
-        job_id,
-        "succeeded",
+    if audio_status == 200:
+        audio_stage["audio"] = audio_payload.get("audio")
+
+    return jsonify(
         {
-            "mode_used": audio_generation_mode,
-            "audio": audio,
-        },
+            "status": "ok" if audio_status == 200 else "partial_success",
+            "mode_used": script_payload.get("mode_used"),
+            "script": script_payload.get("script"),
+            "script_stage": script_stage,
+            "audio_stage": audio_stage,
+        }
     )
-    return jsonify({"status": "ok", "job_id": job_id, "audio": audio, "mode_used": audio_generation_mode})
+
+
+@app.get("/api/generate/audio/latest")
+def api_get_latest_audio():
+    profile = get_or_create_default_profile()
+    latest_job = get_latest_successful_audio_job(profile["id"])
+    if not latest_job:
+        return jsonify({"status": "not_found", "error": "No successful audio job available"}), 404
+
+    details = latest_job.get("details") or {}
+    audio = details.get("audio") if isinstance(details.get("audio"), dict) else {}
+    trigger_origin = str(details.get("trigger_origin") or audio.get("trigger_origin") or "manual")
+    mode_used = str(audio.get("mode_used") or audio.get("audio_mode_used") or details.get("mode_used") or "local")
+    file_name = str(audio.get("file_name") or audio.get("audio_file_name") or f"{latest_job['id']}.mp3")
+    download_url = str(audio.get("download_url") or audio.get("audio_download_url") or f"/api/generation-jobs/{latest_job['id']}/audio")
+    audio_format = str(audio.get("format") or audio.get("audio_format") or "mp3")
+
+    artifact_path = AUDIO_OUTPUT_DIR / file_name
+    if not artifact_path.exists():
+        return (
+            jsonify(
+                {
+                    "status": "not_found",
+                    "error": "Latest audio artifact file is missing",
+                    "job_id": latest_job["id"],
+                    "reason": "audio_artifact_missing",
+                }
+            ),
+            404,
+        )
+
+    return jsonify(
+        {
+            "status": "ok",
+            "job_id": latest_job["id"],
+            "mode_used": mode_used,
+            "trigger_origin": trigger_origin,
+            "file_name": file_name,
+            "download_url": download_url,
+            "format": audio_format,
+        }
+    )
 
 
 @app.get("/api/settings/schedule")

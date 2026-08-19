@@ -483,10 +483,56 @@ function renderGeneratedScript(payload) {
   const output = document.getElementById("script-output");
   const audioStatus = document.getElementById("audio-status");
   const audioDownload = document.getElementById("audio-download");
+  const audioOriginBadge = document.getElementById("audio-origin-badge");
   const header = `Mode: ${payload.mode_used || "n/a"} | Job: ${payload.job_id || "n/a"}`;
   output.textContent = `${header}\n\n${payload.script || "(script vide)"}`;
   audioStatus.textContent = "Aucun audio genere";
   audioDownload.hidden = true;
+  if (audioOriginBadge) {
+    audioOriginBadge.hidden = true;
+  }
+}
+
+function normalizeAudioOrigin(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "scheduled") {
+    return "scheduled";
+  }
+  return "manual";
+}
+
+function renderAudioOriginBadge(origin) {
+  const audioOriginBadge = document.getElementById("audio-origin-badge");
+  if (!audioOriginBadge) {
+    return;
+  }
+  const resolved = normalizeAudioOrigin(origin);
+  audioOriginBadge.classList.remove("manual", "scheduled");
+  audioOriginBadge.classList.add(resolved);
+  audioOriginBadge.textContent = resolved === "scheduled" ? "Origine: planifiee" : "Origine: manuelle";
+  audioOriginBadge.hidden = false;
+}
+
+function renderAudioArtifact(audioPayload, fallbackJobId = "audio") {
+  const audioStatus = document.getElementById("audio-status");
+  const audioDownload = document.getElementById("audio-download");
+  const origin = audioPayload.trigger_origin || audioPayload.origin || "manual";
+  const downloadUrl = audioPayload.download_url || audioPayload.audio_download_url;
+  const fileName = audioPayload.file_name || audioPayload.audio_file_name;
+  const modeUsed = audioPayload.mode_used || audioPayload.audio_mode_used || "local";
+
+  if (downloadUrl) {
+    audioStatus.textContent = `Audio disponible (mode ${modeUsed}).`;
+    audioDownload.href = downloadUrl;
+    audioDownload.download = fileName || `${fallbackJobId}.mp3`;
+    audioDownload.hidden = false;
+    renderAudioOriginBadge(origin);
+    return true;
+  }
+
+  audioStatus.textContent = "Aucun audio disponible";
+  audioDownload.hidden = true;
+  return false;
 }
 
 function generatedScriptTextOnly() {
@@ -937,21 +983,19 @@ document.getElementById("generate-audio-run").addEventListener("click", async ()
       body: JSON.stringify({ script_text: scriptText }),
     });
     const audio = response.audio || {};
-    const downloadUrl = audio.download_url || audio.audio_download_url;
-    const fileName = audio.file_name || audio.audio_file_name;
     const modeUsed = audio.mode_used || audio.audio_mode_used || response.mode_used || "local";
     const audioError = audio.error || response.error;
-    const audioStatus = document.getElementById("audio-status");
-    const audioDownload = document.getElementById("audio-download");
-    if (response.status === "ok" && downloadUrl) {
-      audioStatus.textContent = `Audio genere en mode ${modeUsed}.`;
-      audioDownload.href = downloadUrl;
-      audioDownload.download = fileName || `${response.job_id || "audio"}.mp3`;
-      audioDownload.hidden = false;
+    if (response.status === "ok" && renderAudioArtifact(audio, response.job_id || "audio")) {
       setStatus("Audio genere avec succes");
     } else {
+      const audioStatus = document.getElementById("audio-status");
+      const audioDownload = document.getElementById("audio-download");
+      const audioOriginBadge = document.getElementById("audio-origin-badge");
       audioStatus.textContent = `Audio indisponible: ${audioError || "erreur inconnue"}`;
       audioDownload.hidden = true;
+      if (audioOriginBadge) {
+        audioOriginBadge.hidden = true;
+      }
       setStatus(audioError || "Audio indisponible", true);
     }
     await reloadOps();
@@ -961,6 +1005,42 @@ document.getElementById("generate-audio-run").addEventListener("click", async ()
     button.disabled = false;
     button.textContent = originalLabel;
     setProgressState(false, "Pret");
+  }
+});
+
+document.getElementById("latest-audio-run").addEventListener("click", async () => {
+  const button = document.getElementById("latest-audio-run");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Recherche en cours...";
+  setStatus("Recherche du dernier audio genere...");
+
+  try {
+    const response = await fetch("/api/generate/audio/latest", {
+      headers: { "Content-Type": "application/json" },
+    });
+    const body = await response.json();
+
+    if (response.ok && body.status === "ok") {
+      renderAudioArtifact(body, body.job_id || "audio");
+      setStatus("Dernier audio charge avec succes");
+    } else {
+      const audioStatus = document.getElementById("audio-status");
+      const audioDownload = document.getElementById("audio-download");
+      const audioOriginBadge = document.getElementById("audio-origin-badge");
+      audioStatus.textContent = body.error || "Aucun audio disponible pour le moment";
+      audioDownload.hidden = true;
+      if (audioOriginBadge) {
+        audioOriginBadge.hidden = true;
+      }
+      setStatus(audioStatus.textContent, response.status >= 500);
+    }
+    await reloadOps();
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
 });
 

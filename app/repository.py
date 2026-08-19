@@ -772,3 +772,49 @@ def list_recent_generation_jobs(limit: int = 20) -> list[dict[str, Any]]:
             item["details"] = {}
         parsed.append(item)
     return parsed
+
+
+def get_generation_job(job_id: str) -> dict[str, Any] | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, profile_id, job_type, status, started_at, finished_at, details_json
+            FROM generation_jobs
+            WHERE id = ?
+            """,
+            (job_id,),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    item = row_to_dict(row)
+    try:
+        item["details"] = json.loads(item.get("details_json") or "{}")
+    except json.JSONDecodeError:
+        item["details"] = {}
+    return item
+
+
+def get_latest_successful_audio_job(profile_id: str) -> dict[str, Any] | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, profile_id, job_type, status, started_at, finished_at, details_json
+            FROM generation_jobs
+            WHERE profile_id = ? AND job_type = 'audio_generation' AND status = 'succeeded'
+            ORDER BY COALESCE(finished_at, started_at) DESC
+            LIMIT 1
+            """,
+            (profile_id,),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    item = row_to_dict(row)
+    try:
+        item["details"] = json.loads(item.get("details_json") or "{}")
+    except json.JSONDecodeError:
+        item["details"] = {}
+    return item

@@ -214,16 +214,14 @@ def generate_script_with_deterministic_mode(
             default_impact_templates = [
                 "Fait du jour: {title}.",
                 "A retenir aujourd'hui: {title}.",
-                "Ce que dit l'actualite: {title}.",
+                "Ce que dit l'actualité: {title}.",
                 "Point de situation: {title}.",
-                "En clair, l'information cle est la suivante: {title}.",
-                "L'element marquant de cette breve: {title}.",
+                
                 "Lecture rapide: {title}.",
-                "Sur ce sujet, le signal principal est: {title}.",
-                "Dans cette sequence, on note: {title}.",
-                "Ce qu'il faut suivre maintenant: {title}.",
-                "A ce stade, le point de repere est: {title}.",
-                "Cette breve met en avant: {title}.",
+                "En bref: {title}.",
+                "A surveiller: {title}.",
+                
+                "Ce qu'il faut suivre : {title}.",
             ]
             default_impact_template = _pick_variant(
                 default_impact_templates,

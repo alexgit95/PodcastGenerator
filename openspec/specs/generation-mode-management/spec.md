@@ -60,3 +60,14 @@ The system MUST display the generated script text in the admin UI and MUST provi
 - **WHEN** an operator clicks the copy action for the generated script
 - **THEN** the script text is copied to clipboard or a clear error message is displayed if clipboard permissions fail
 
+### Requirement: Admin UI SHALL allow operators to fetch latest generated audio artifact
+The admin UI MUST provide an action to retrieve the latest generated audio artifact, including artifacts produced by scheduled runs.
+
+#### Scenario: Operator requests latest audio
+- **WHEN** operator clicks "Recuperer le dernier audio genere"
+- **THEN** UI resolves latest available audio metadata and displays a download action
+
+#### Scenario: No audio available
+- **WHEN** no latest audio can be resolved
+- **THEN** UI displays a clear informational message without breaking other generation controls
+
