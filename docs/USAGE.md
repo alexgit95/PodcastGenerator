@@ -76,3 +76,20 @@ curl -X POST http://localhost:8080/api/generate/script \
 ```bash
 curl http://localhost:8080/api/budget-status
 ```
+
+## 5. Publication Docker via GitHub Actions
+
+Workflow:
+
+- [.github/workflows/build-and-push.yml](.github/workflows/build-and-push.yml)
+
+Pre-requis repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Resultat attendu selon evenement Git:
+
+- Push sur branche non `main`: publication `${DOCKERHUB_USERNAME}/podcast-generator:<branch-sanitize>`
+- Push sur `main`: publication `${DOCKERHUB_USERNAME}/podcast-generator:latest`
+- Push git tag `vX.Y.Z`: publication `${DOCKERHUB_USERNAME}/podcast-generator:vX.Y.Z` et `latest`

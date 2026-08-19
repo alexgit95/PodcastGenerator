@@ -73,9 +73,32 @@ docker run --rm -p 8080:8080 \
   podcast-generator:local
 ```
 
-Note: le Dockerfile n'est pas encore fourni dans ce depot. Ajouter un Dockerfile est la prochaine etape si tu veux une execution full conteneur immediate.
+Le build utilise le Dockerfile versionne a la racine du depot:
 
-## 8. Depannage rapide
+- [Dockerfile](Dockerfile)
+
+## 8. CI/CD GitHub Actions vers Docker Hub
+
+Workflow CI/CD:
+
+- [.github/workflows/build-and-push.yml](.github/workflows/build-and-push.yml)
+
+Secrets GitHub requis:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Politique de tags image:
+
+- push sur branche non `main`: tag image = nom de branche sanitize
+- push sur `main`: tag image = `latest`
+- push d'un git tag: tags image = `<git-tag>` et `latest`
+
+Image publiee:
+
+- `${DOCKERHUB_USERNAME}/podcast-generator:<tag>`
+
+## 9. Depannage rapide
 
 - Erreur `Missing API key`: definir `PODCAST_LLM_API_KEY`
 - Pas de contenu en preview: verifier mappings categorie->flux et sources actives
