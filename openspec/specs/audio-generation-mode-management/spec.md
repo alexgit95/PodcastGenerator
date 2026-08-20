@@ -17,6 +17,17 @@ The system MUST use Piper as the local text-to-speech engine when audio generati
 - **WHEN** an audio generation job runs in `local` mode
 - **THEN** the system produces French speech using Piper
 
+### Requirement: Local audio generation SHALL support configurable pauses between category sections
+The system MUST support a deterministic global setting that controls how much silence is inserted between category sections in locally generated audio.
+
+#### Scenario: Category pause enabled
+- **WHEN** local audio generation receives a script with section boundaries and `extractive_rules.categoryPauseSeconds` is greater than `0`
+- **THEN** the audio pipeline inserts silence of the configured duration between synthesized sections before producing the final MP3
+
+#### Scenario: Category pause disabled
+- **WHEN** `extractive_rules.categoryPauseSeconds` is `0`
+- **THEN** the local audio pipeline skips inter-section silence insertion while still producing a valid MP3 artifact
+
 ### Requirement: Audio generation SHALL produce MP3 output
 The system MUST produce a final MP3 file as the deliverable audio artifact for a generated episode.
 

@@ -35,6 +35,13 @@ The admin UI MUST provide controls for deterministic `Secondes cible/article` an
 - **WHEN** an operator changes these controls and saves deterministic global settings
 - **THEN** values are sent to deterministic global settings API and reflected on next settings reload
 
+### Requirement: Deterministic matrix UI SHALL expose configurable audio pause between categories
+The admin UI MUST provide a deterministic global control for `Pause audio entre categories (sec)`.
+
+#### Scenario: Operator changes deterministic category pause control
+- **WHEN** an operator changes the category pause control and saves deterministic global settings
+- **THEN** the value is sent to deterministic global settings API, validated, persisted, and reflected on the next settings reload
+
 ### Requirement: New categories SHALL receive deterministic defaults
 When a category is created, the system MUST create a deterministic category override record with default values so the UI has a baseline configuration available immediately.
 
@@ -70,4 +77,11 @@ The admin UI MUST provide an action to retrieve the latest generated audio artif
 #### Scenario: No audio available
 - **WHEN** no latest audio can be resolved
 - **THEN** UI displays a clear informational message without breaking other generation controls
+
+### Requirement: Admin UI SHALL expose consolidated debug JSON for tuning and troubleshooting
+The admin UI MUST provide a read-only debug JSON export area that consolidates deterministic settings, episode generation settings, catalog state, and the latest preview/script/audio payloads.
+
+#### Scenario: Operator refreshes and copies debug JSON
+- **WHEN** an operator refreshes or copies the debug JSON area
+- **THEN** the UI exposes a current JSON payload suitable for copy-paste debugging of deterministic behavior and generation results
 

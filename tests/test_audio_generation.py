@@ -99,7 +99,7 @@ class AudioGenerationTests(unittest.TestCase):
             self.assertEqual(len(piper_calls), 3)
             self.assertTrue(silence_calls)
             self.assertTrue(any(command[0] == "ffmpeg" and "concat" in command for command in commands))
-            self.assertEqual(silence_calls[0][8], "1.2")
+            self.assertEqual(silence_calls[0][7], "1.2")
             self.assertEqual(result["audio_file_name"], "job-456.mp3")
 
     def test_audio_mode_persists_in_profile(self):

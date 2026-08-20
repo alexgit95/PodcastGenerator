@@ -17,12 +17,20 @@ The system MUST support deterministic matrix settings at profile level and categ
 - **WHEN** deterministic generation runs for a category with override values
 - **THEN** override values are applied for that category and global defaults are used for missing fields
 
+#### Scenario: Default category intro avoids first-item duplication
+- **WHEN** deterministic generation uses the built-in category intro behavior
+- **THEN** the category intro identifies the section without repeating the title of the first brief that is rendered immediately afterward
+
 ### Requirement: Deterministic generation SHALL preserve composition constraints
 The system MUST enforce configured duration target, freshness limit, and trim order while composing deterministic scripts.
 
 #### Scenario: Deterministic output overflow
 - **WHEN** assembled deterministic output exceeds target duration budget
 - **THEN** the system trims content using configured priority order until the output is within allowed bounds
+
+#### Scenario: Final deterministic script keeps preview-selected briefs
+- **WHEN** deterministic preview composition has already selected multiple briefs to satisfy the configured duration budget
+- **THEN** final deterministic script rendering uses the full selected brief list instead of truncating categories again during text assembly
 
 ### Requirement: Deterministic matrix SHALL expose configurable per-item duration target
 The system MUST support a deterministic global setting that defines target seconds per article (`briefSecondsTarget`) and MUST apply it in composition preview budgeting.
@@ -45,6 +53,13 @@ The system MUST support an optional deterministic setting (`extractive_rules.dur
 #### Scenario: Alignment disabled
 - **WHEN** `durationAlignmentEnabled` is false
 - **THEN** deterministic generation uses base templates without alignment-driven expansion
+
+### Requirement: Deterministic script output SHALL preserve category section boundaries
+The system MUST render deterministic multi-category scripts with explicit paragraph boundaries between intro, category sections, and conclusion so downstream consumers can identify section changes.
+
+#### Scenario: Multi-category deterministic output
+- **WHEN** deterministic generation produces a script with more than one category section
+- **THEN** the output contains paragraph breaks between sections suitable for later audio pause insertion or human inspection
 
 ### Requirement: Deterministic freshness limit SHALL follow matrix global settings
 When generation mode is `deterministic`, the freshness filter used for item collection MUST use deterministic global freshness (`freshness_hours_max`).

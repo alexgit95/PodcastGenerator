@@ -227,8 +227,10 @@ class GenerationModeApiTests(unittest.TestCase):
         payload = response.get_json()
         briefs = payload["preview"]["sections"]["category_sections"][0]["briefs"]
         self.assertGreater(len(briefs), 3)
+        script_lines = payload["script"].splitlines()
         for item in briefs:
-            self.assertEqual(payload["script"].count(item["title"]), 1)
+            matching_lines = [line for line in script_lines if line.strip().endswith(f"{item['title']}.")]
+            self.assertEqual(len(matching_lines), 1)
 
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
@@ -370,6 +372,24 @@ class GenerationModeApiTests(unittest.TestCase):
     def test_latest_audio_endpoint_returns_latest_downloadable_audio(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
+            repository.update_deterministic_global_settings(
+                self.profile["id"],
+                {
+                    "version": 1,
+                    "target_duration_sec": 600,
+                    "speech_rate_wpm": 155,
+                    "freshness_hours_max": 48,
+                    "max_items_per_category_default": 3,
+                    "min_items_per_category_default": 1,
+                    "scoring_weights": repository.DETERMINISTIC_SCORING_WEIGHTS,
+                    "extractive_rules": {
+                        **repository.DETERMINISTIC_EXTRACTIVE_RULES,
+                        "categoryPauseSeconds": 0.9,
+                    },
+                    "trim_policy": repository.DETERMINISTIC_TRIM_POLICY,
+                    "fallback_policy": repository.DETERMINISTIC_FALLBACK_POLICY,
+                },
+            )
 
             def _fake_generate_local_mp3(_script_text: str, job_id: str, *, category_pause_seconds: float = 0.6):
                 self.assertEqual(category_pause_seconds, 0.9)
