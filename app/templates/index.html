@@ -104,6 +104,9 @@
           <label for="det-fallback-no-items">Fallback: aucun item <span class="tip" title="Strategie appliquee quand une categorie n'a aucun item.">?</span></label>
           <input id="det-fallback-no-items" type="text" placeholder="skipCategoryAndRebalance" />
 
+          <label for="det-category-pause-seconds">Pause audio entre categories (sec) <span class="tip" title="Ajoute un court silence entre deux categories dans l'audio local. Mettez 0 pour desactiver.">?</span></label>
+          <input id="det-category-pause-seconds" type="number" min="0" max="5" step="0.1" />
+
           <details class="det-advanced">
             <summary>Mode avance JSON (optionnel)</summary>
             <div class="stack">

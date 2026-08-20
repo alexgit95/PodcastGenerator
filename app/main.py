@@ -94,6 +94,12 @@ def _build_version_payload() -> dict:
 
 def _run_audio_generation_job(profile: dict, script_text: str, *, trigger_origin: str) -> tuple[dict, int]:
     audio_generation_mode = str(profile.get("audio_generation_mode", "local")).strip().lower() or "local"
+    deterministic_global_settings = get_deterministic_global_settings(profile["id"]) or {}
+    extractive_rules = deterministic_global_settings.get("extractive_rules") or {}
+    try:
+        category_pause_seconds = float(extractive_rules.get("categoryPauseSeconds", 0.6) or 0.0)
+    except (TypeError, ValueError):
+        category_pause_seconds = 0.6
     if audio_generation_mode != "local":
         job_id = create_generation_job(
             profile["id"],
@@ -126,7 +132,7 @@ def _run_audio_generation_job(profile: dict, script_text: str, *, trigger_origin
         },
     )
     try:
-        audio_raw = generate_local_mp3(script_text, job_id)
+        audio_raw = generate_local_mp3(script_text, job_id, category_pause_seconds=category_pause_seconds)
     except AudioGenerationError as error:
         update_generation_job(
             job_id,

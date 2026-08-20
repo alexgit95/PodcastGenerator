@@ -15,6 +15,7 @@ DETERMINISTIC_EXTRACTIVE_RULES = {
     "maxSentenceChars": 220,
     "stripQuotesIfLong": True,
     "briefSecondsTarget": 45,
+    "categoryPauseSeconds": 0.6,
     "durationAlignmentEnabled": False,
 }
 DETERMINISTIC_TRIM_POLICY = {

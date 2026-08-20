@@ -11,7 +11,7 @@ SCHEMA_PATH = ROOT_DIR / "database" / "schema.sql"
 
 
 DETERMINISTIC_SCORING_WEIGHTS = '{"freshness":0.45,"sourceCredibility":0.30,"textRichness":0.15,"diversity":0.10}'
-DETERMINISTIC_EXTRACTIVE_RULES = '{"maxSentencesPerItem":2,"minSentenceChars":40,"maxSentenceChars":220,"stripQuotesIfLong":true,"briefSecondsTarget":45,"durationAlignmentEnabled":false}'
+DETERMINISTIC_EXTRACTIVE_RULES = '{"maxSentencesPerItem":2,"minSentenceChars":40,"maxSentenceChars":220,"stripQuotesIfLong":true,"briefSecondsTarget":45,"categoryPauseSeconds":0.6,"durationAlignmentEnabled":false}'
 DETERMINISTIC_TRIM_POLICY = '{"order":["conclusion","transitions","lowestPriorityItem"],"stepSec":15,"hardFloorSec":540}'
 DETERMINISTIC_FALLBACK_POLICY = '{"ifTooShortAdd":["whyItMatters","watchNext"],"ifNoItems":"skipCategoryAndRebalance"}'
 

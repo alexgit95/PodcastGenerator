@@ -167,6 +167,19 @@ def _parse_non_negative_int(value: Any, env_name: str) -> int:
     return parsed
 
 
+def _parse_non_negative_float(value: Any, env_name: str) -> float:
+    text = str(value).strip()
+    if not text:
+        raise RuntimeSettingsError(f"Missing value for {env_name}")
+    try:
+        parsed = float(text)
+    except ValueError as error:
+        raise RuntimeSettingsError(f"Invalid number for {env_name}: '{text}'") from error
+    if parsed < 0:
+        raise RuntimeSettingsError(f"{env_name} must be >= 0")
+    return parsed
+
+
 def _parse_json_object(value: Any, env_name: str) -> dict[str, Any]:
     if value is None:
         raise RuntimeSettingsError(f"Missing value for {env_name}")
@@ -283,10 +296,18 @@ def validate_deterministic_global_settings(settings: dict[str, Any]) -> dict[str
     if not (5 <= brief_seconds_target <= 180):
         raise RuntimeSettingsError("DETERMINISTIC_BRIEF_SECONDS_TARGET must be between 5 and 180")
 
+    category_pause_seconds = _parse_non_negative_float(
+        extractive_rules.get("categoryPauseSeconds", 0.6),
+        "DETERMINISTIC_CATEGORY_PAUSE_SECONDS",
+    )
+    if not (0 <= category_pause_seconds <= 5):
+        raise RuntimeSettingsError("DETERMINISTIC_CATEGORY_PAUSE_SECONDS must be between 0 and 5")
+
     alignment_enabled_raw = extractive_rules.get("durationAlignmentEnabled", False)
     alignment_enabled = bool(alignment_enabled_raw)
 
     extractive_rules["briefSecondsTarget"] = brief_seconds_target
+    extractive_rules["categoryPauseSeconds"] = round(category_pause_seconds, 2)
     extractive_rules["durationAlignmentEnabled"] = alignment_enabled
     validated["extractive_rules"] = extractive_rules
 

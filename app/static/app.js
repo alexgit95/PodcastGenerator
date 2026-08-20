@@ -332,6 +332,7 @@ function renderDeterministicSettings() {
   document.getElementById("det-extractive-min-chars").value = coalesce(extractive.minSentenceChars, 40);
   document.getElementById("det-extractive-max-chars").value = coalesce(extractive.maxSentenceChars, 220);
   document.getElementById("det-brief-seconds").value = coalesce(extractive.briefSecondsTarget, 45);
+  document.getElementById("det-category-pause-seconds").value = coalesce(extractive.categoryPauseSeconds, 0.6);
   document.getElementById("det-extractive-strip-quotes").checked = Boolean(extractive.stripQuotesIfLong);
   document.getElementById("det-duration-alignment-enabled").checked = Boolean(extractive.durationAlignmentEnabled);
 
@@ -688,6 +689,7 @@ document.getElementById("deterministic-global-save").addEventListener("click", a
       minSentenceChars: Number(document.getElementById("det-extractive-min-chars").value),
       maxSentenceChars: Number(document.getElementById("det-extractive-max-chars").value),
       briefSecondsTarget: Number(document.getElementById("det-brief-seconds").value),
+      categoryPauseSeconds: Number(document.getElementById("det-category-pause-seconds").value),
       stripQuotesIfLong: document.getElementById("det-extractive-strip-quotes").checked,
       durationAlignmentEnabled: document.getElementById("det-duration-alignment-enabled").checked,
     };

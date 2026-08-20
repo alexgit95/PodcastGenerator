@@ -25,6 +25,7 @@ with patch.dict(os.environ, LLM_ENV, clear=False):
         from app.main import app as flask_app
         import app.main as main_module
         import app.rss_collection as rss_collection
+        from app.script_generation import generate_script_with_deterministic_mode
         FLASK_AVAILABLE = True
     except ModuleNotFoundError:
         FLASK_AVAILABLE = False
@@ -232,6 +233,44 @@ class GenerationModeApiTests(unittest.TestCase):
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
+    def test_deterministic_script_includes_paragraph_breaks_between_categories(self):
+        generation = generate_script_with_deterministic_mode(
+            preview={
+                "duration_target_minutes": 10,
+                "brief_seconds": 15,
+                "sections": {
+                    "category_sections": [
+                        {
+                            "category_id": "catA",
+                            "category_name": "Categorie A",
+                            "briefs": [
+                                {"title": "Sujet A1", "source_title": "Source A", "link": "https://example.com/a1"},
+                            ],
+                        },
+                        {
+                            "category_id": "catB",
+                            "category_name": "Categorie B",
+                            "briefs": [
+                                {"title": "Sujet B1", "source_title": "Source B", "link": "https://example.com/b1"},
+                            ],
+                        },
+                    ],
+                    "conclusion": {"estimated_seconds": 40},
+                },
+            },
+            deterministic_global_settings={
+                "speech_rate_wpm": 155,
+                "max_items_per_category_default": 3,
+                "min_items_per_category_default": 1,
+                "extractive_rules": {"briefSecondsTarget": 15, "durationAlignmentEnabled": False},
+            },
+            deterministic_category_settings=[],
+            per_episode_token_cap=10000,
+        )
+
+        self.assertIn("\n\nEn Categorie A", generation["script"])
+        self.assertIn("\n\nEn Categorie B", generation["script"])
+
     def test_script_generation_no_longer_returns_audio_artifact(self):
         with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
             main_module,
@@ -332,7 +371,8 @@ class GenerationModeApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
 
-            def _fake_generate_local_mp3(_script_text: str, job_id: str):
+            def _fake_generate_local_mp3(_script_text: str, job_id: str, *, category_pause_seconds: float = 0.6):
+                self.assertEqual(category_pause_seconds, 0.9)
                 (output_dir / f"{job_id}.mp3").write_bytes(b"mp3")
                 return {
                     "audio_file_name": f"{job_id}.mp3",
@@ -446,6 +486,25 @@ class GenerationModeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("between 5 and 180", response.get_json()["error"])
 
+    def test_invalid_category_pause_setting_is_rejected(self):
+        response = self.client.put(
+            "/api/settings/deterministic/global",
+            json={
+                "version": 1,
+                "target_duration_sec": 600,
+                "speech_rate_wpm": 155,
+                "freshness_hours_max": 48,
+                "max_items_per_category_default": 3,
+                "min_items_per_category_default": 1,
+                "scoring_weights": {"freshness": 0.45},
+                "extractive_rules": {"briefSecondsTarget": 15, "categoryPauseSeconds": 8},
+                "trim_policy": {"order": ["conclusion"]},
+                "fallback_policy": {"ifNoItems": "skipCategoryAndRebalance"},
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("DETERMINISTIC_CATEGORY_PAUSE_SECONDS", response.get_json()["error"])
+
     def test_deterministic_brief_seconds_and_alignment_are_applied(self):
         with patch.dict(os.environ, {}, clear=True), self._patch_feed(), patch.object(
             main_module,
@@ -471,6 +530,7 @@ class GenerationModeApiTests(unittest.TestCase):
                         "maxSentenceChars": 220,
                         "stripQuotesIfLong": True,
                         "briefSecondsTarget": 20,
+                        "categoryPauseSeconds": 0.9,
                         "durationAlignmentEnabled": True,
                     },
                     "trim_policy": {"order": ["conclusion", "transitions", "lowestPriorityItem"], "stepSec": 15, "hardFloorSec": 540},
@@ -480,6 +540,7 @@ class GenerationModeApiTests(unittest.TestCase):
             self.assertEqual(settings_response.status_code, 200)
             settings_payload = settings_response.get_json()
             self.assertEqual(settings_payload["extractive_rules"]["briefSecondsTarget"], 20)
+            self.assertEqual(settings_payload["extractive_rules"]["categoryPauseSeconds"], 0.9)
             self.assertTrue(settings_payload["extractive_rules"]["durationAlignmentEnabled"])
 
             response = self.client.post(

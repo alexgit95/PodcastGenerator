@@ -165,6 +165,23 @@ def _pick_variant(variants: list[str], seed: str, *, randomize: bool = False) ->
     return variants[checksum % len(variants)]
 
 
+def _join_script_lines(lines: list[str]) -> str:
+    normalized: list[str] = []
+    previous_blank = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            if normalized and not previous_blank:
+                normalized.append("")
+            previous_blank = True
+            continue
+        normalized.append(stripped)
+        previous_blank = False
+    while normalized and not normalized[-1].strip():
+        normalized.pop()
+    return "\n".join(normalized)
+
+
 def generate_script_with_deterministic_mode(
     *,
     preview: dict[str, Any],
@@ -185,6 +202,7 @@ def generate_script_with_deterministic_mode(
     sections = preview.get("sections", {})
 
     for index, category_section in enumerate(sections.get("category_sections", [])):
+        lines.append("")
         category_id = category_section.get("category_id")
         category_name = category_section.get("category_name", "Categorie")
         settings = category_settings_map.get(category_id, {})
@@ -260,6 +278,7 @@ def generate_script_with_deterministic_mode(
             )
 
     if sections.get("conclusion") is not None:
+        lines.append("")
         lines.append(
             _deterministic_conclusion(
                 preview=preview,
@@ -267,7 +286,7 @@ def generate_script_with_deterministic_mode(
             )
         )
 
-    script = "\n".join(line for line in lines if line.strip())
+    script = _join_script_lines(lines)
     usage = {
         "input_tokens": 0,
         "output_tokens": estimate_tokens_from_text(script),
