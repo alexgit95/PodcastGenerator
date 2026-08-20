@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 import json
 import math
+import logging
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -10,6 +11,9 @@ from urllib.request import Request, urlopen
 
 class ScriptGenerationError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_tokens_from_text(text: str) -> int:
@@ -315,7 +319,7 @@ def _generate_with_openai_compatible_api(
 
     last_error: str | None = None
     attempts = max(0, max_retries) + 1
-    for _ in range(attempts):
+    for attempt in range(1, attempts + 1):
         try:
             req = Request(
                 api_url,
@@ -344,12 +348,42 @@ def _generate_with_openai_compatible_api(
         except HTTPError as error:
             body = error.read().decode("utf-8", errors="ignore")
             last_error = f"HTTP {error.code}: {body[:500]}"
+            logger.warning(
+                "Script generation provider request failed with HTTP error",
+                extra={
+                    "provider_api_url": api_url,
+                    "provider_model": api_model,
+                    "http_status": error.code,
+                    "attempt": attempt,
+                    "attempts_total": attempts,
+                    "response_body_preview": body[:500],
+                },
+            )
         except URLError as error:
             last_error = f"Network error: {error.reason}"
+            logger.warning(
+                "Script generation provider request failed with network error",
+                extra={
+                    "provider_api_url": api_url,
+                    "provider_model": api_model,
+                    "attempt": attempt,
+                    "attempts_total": attempts,
+                    "network_reason": str(error.reason),
+                },
+            )
         except ScriptGenerationError:
             raise
         except Exception as error:  # pragma: no cover
             last_error = f"Unexpected error: {error}"
+            logger.exception(
+                "Unexpected script generation provider error",
+                extra={
+                    "provider_api_url": api_url,
+                    "provider_model": api_model,
+                    "attempt": attempt,
+                    "attempts_total": attempts,
+                },
+            )
 
     raise ScriptGenerationError(last_error or "Script generation failed")
 

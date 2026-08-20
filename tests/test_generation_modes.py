@@ -131,6 +131,26 @@ class GenerationModeApiTests(unittest.TestCase):
         self.assertEqual(payload["script"], "script llm")
         self.assertTrue(mocked_generate.called)
 
+    def test_llm_mode_logs_provider_failure_before_returning_502(self):
+        with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), self.assertLogs(
+            flask_app.logger.name,
+            level="ERROR",
+        ) as captured, patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            side_effect=main_module.ScriptGenerationError("HTTP 502: upstream unavailable"),
+        ):
+            response = self.client.post(
+                "/api/generate/script",
+                json={"duration_target_minutes": 1, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 502)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "generation_error")
+        self.assertIn("HTTP 502", payload["error"])
+        self.assertTrue(any("Script generation failed in provider mode" in entry for entry in captured.output))
+
     def test_deterministic_mode_runs_without_llm_credentials(self):
         with patch.dict(os.environ, {}, clear=True), self._patch_feed(), patch.object(
             main_module,

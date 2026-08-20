@@ -1,5 +1,7 @@
+import io
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from app.runtime_settings import RuntimeSettingsError, validate_runtime_settings
 from app.script_generation import ScriptGenerationError, generate_script_with_single_provider
@@ -36,6 +38,36 @@ class SingleProviderExecutionTests(unittest.TestCase):
                 per_episode_token_cap=10000,
             )
         self.assertIn("Unsupported provider adapter", str(ctx.exception))
+
+    def test_openai_compatible_http_error_is_logged(self):
+        http_error = HTTPError(
+            url="https://api.openai.com/v1/chat/completions",
+            code=502,
+            msg="Bad Gateway",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":"upstream unavailable"}'),
+        )
+
+        with self.assertLogs("app.script_generation", level="WARNING") as captured, patch(
+            "app.script_generation.urlopen",
+            side_effect=http_error,
+        ):
+            with self.assertRaises(ScriptGenerationError) as ctx:
+                generate_script_with_single_provider(
+                    provider="openai",
+                    provider_adapter="openai_compatible",
+                    prompt_text="bonjour",
+                    api_url="https://api.openai.com/v1/chat/completions",
+                    api_key="key",
+                    api_model="gpt-4o-mini",
+                    max_retries=0,
+                    per_episode_token_cap=10000,
+                )
+
+        self.assertIn("HTTP 502", str(ctx.exception))
+        self.assertTrue(
+            any("Script generation provider request failed with HTTP error" in entry for entry in captured.output)
+        )
 
 
 class RuntimeConfigValidationTests(unittest.TestCase):

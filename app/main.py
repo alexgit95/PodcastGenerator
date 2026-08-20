@@ -589,6 +589,14 @@ def api_generate_script():
                 per_episode_token_cap=per_episode_cap,
             )
         except ScriptGenerationError as error:
+            app.logger.exception(
+                "Script generation failed in deterministic mode",
+                extra={
+                    "job_id": job_id,
+                    "mode_used": generation_mode,
+                    "duration_target_minutes": preview.get("duration_target_minutes"),
+                },
+            )
             update_generation_job(job_id, "failed", {"error": str(error), "mode_used": generation_mode})
             return jsonify({"status": "generation_error", "error": str(error)}), 502
 
@@ -682,6 +690,19 @@ def api_generate_script():
             per_episode_token_cap=per_episode_cap,
         )
     except ScriptGenerationError as error:
+        app.logger.exception(
+            "Script generation failed in provider mode",
+            extra={
+                "job_id": job_id,
+                "mode_used": generation_mode,
+                "provider": str(RUNTIME_SETTINGS["api_provider"]),
+                "provider_adapter": str(RUNTIME_SETTINGS["provider_adapter"]),
+                "provider_api_url": str(RUNTIME_SETTINGS["api_url"]),
+                "provider_model": str(RUNTIME_SETTINGS["api_model"]),
+                "estimated_prompt_tokens": estimated_prompt_tokens,
+                "prompt_truncated": prompt_truncated,
+            },
+        )
         update_generation_job(job_id, "failed", {"error": str(error), "mode_used": generation_mode})
         return jsonify({"status": "generation_error", "error": str(error)}), 502
 
