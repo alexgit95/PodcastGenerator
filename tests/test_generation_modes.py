@@ -173,6 +173,27 @@ class GenerationModeApiTests(unittest.TestCase):
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
+    def test_deterministic_mode_does_not_repeat_first_item_in_category_intro(self):
+        with patch.dict(os.environ, {}, clear=True), self._patch_feed(), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            side_effect=AssertionError("LLM provider must not be called in deterministic mode"),
+        ):
+            mode_response = self.client.put("/api/settings/mode", json={"generation_mode": "deterministic"})
+            self.assertEqual(mode_response.status_code, 200)
+
+            response = self.client.post(
+                "/api/generate/script",
+                json={"duration_target_minutes": 3, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["script"].count("Fresh item A"), 1)
+
+        with patch.dict(os.environ, LLM_ENV, clear=False):
+            self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
+
     def test_script_generation_no_longer_returns_audio_artifact(self):
         with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
             main_module,

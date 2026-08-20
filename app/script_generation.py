@@ -189,7 +189,7 @@ def generate_script_with_deterministic_mode(
         category_name = category_section.get("category_name", "Categorie")
         settings = category_settings_map.get(category_id, {})
         templates = settings.get("templates") or {}
-        lead_in_template = templates.get("leadIn") or templates.get("intro") or f"En {{category_name}}, premier point: {{title}}."
+        lead_in_template = templates.get("leadIn") or templates.get("intro") or "En {category_name}, voici les informations a retenir."
         default_transition_templates = [
             "On passe au sujet suivant.",
             "On continue avec le point suivant.",
