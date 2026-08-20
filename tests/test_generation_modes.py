@@ -194,6 +194,44 @@ class GenerationModeApiTests(unittest.TestCase):
         with patch.dict(os.environ, LLM_ENV, clear=False):
             self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
 
+    def test_deterministic_mode_keeps_preview_item_count_for_longer_episode(self):
+        published_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        many_items = [
+            {
+                "title": f"Fresh item {index}",
+                "link": f"https://example.com/fresh-{index}",
+                "published_at": published_at - timedelta(minutes=index),
+            }
+            for index in range(12)
+        ]
+
+        with patch.dict(os.environ, {}, clear=True), patch.object(
+            rss_collection,
+            "_fetch_source_items",
+            return_value=many_items,
+        ), patch.object(
+            main_module,
+            "generate_script_with_single_provider",
+            side_effect=AssertionError("LLM provider must not be called in deterministic mode"),
+        ):
+            mode_response = self.client.put("/api/settings/mode", json={"generation_mode": "deterministic"})
+            self.assertEqual(mode_response.status_code, 200)
+
+            response = self.client.post(
+                "/api/generate/script",
+                json={"duration_target_minutes": 10, "category_ids": [self.category["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        briefs = payload["preview"]["sections"]["category_sections"][0]["briefs"]
+        self.assertGreater(len(briefs), 3)
+        for item in briefs:
+            self.assertEqual(payload["script"].count(item["title"]), 1)
+
+        with patch.dict(os.environ, LLM_ENV, clear=False):
+            self.client.put("/api/settings/mode", json={"generation_mode": "llm"})
+
     def test_script_generation_no_longer_returns_audio_artifact(self):
         with patch.dict(os.environ, LLM_ENV, clear=False), self._patch_feed(), patch.object(
             main_module,

@@ -199,9 +199,6 @@ def generate_script_with_deterministic_mode(
         ]
         transition_out_template = templates.get("transitionOut") or templates.get("transition")
         briefs = category_section.get("briefs", [])
-        effective_max_items = settings.get("max_items") or global_max_items
-        effective_max_items = max(global_min_items, int(effective_max_items))
-        briefs = briefs[:effective_max_items]
 
         lines.append(
             _render_template(
