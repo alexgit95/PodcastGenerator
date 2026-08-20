@@ -148,6 +148,11 @@ textarea {
   resize: vertical;
 }
 
+.debug-output {
+  min-height: 22rem;
+  font-family: Consolas, "Courier New", monospace;
+}
+
 button {
   border-color: var(--accent);
   background: linear-gradient(120deg, var(--accent), var(--accent-2));

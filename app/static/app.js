@@ -21,6 +21,9 @@ const state = {
     },
   budgetStatus: null,
   jobs: [],
+  lastPreview: null,
+  lastScriptResponse: null,
+  lastAudioResponse: null,
 };
 
 const statusNode = document.getElementById("status");
@@ -447,11 +450,14 @@ async function reloadAll() {
   await reloadVersion();
   renderScheduleSummary(state.settings);
   await reloadOps();
+  renderDebugPayload();
 }
 
 function renderPreview(preview) {
+  state.lastPreview = preview;
   const output = document.getElementById("preview-output");
   output.textContent = JSON.stringify(preview, null, 2);
+  renderDebugPayload();
 }
 
 function renderBuildVersion() {
@@ -481,6 +487,7 @@ async function reloadVersion() {
 }
 
 function renderGeneratedScript(payload) {
+  state.lastScriptResponse = payload;
   const output = document.getElementById("script-output");
   const audioStatus = document.getElementById("audio-status");
   const audioDownload = document.getElementById("audio-download");
@@ -492,6 +499,55 @@ function renderGeneratedScript(payload) {
   if (audioOriginBadge) {
     audioOriginBadge.hidden = true;
   }
+  renderDebugPayload();
+}
+
+function buildDebugPayload() {
+  const enabledCategoryIds = state.categories.filter((item) => Boolean(item.enabled)).map((item) => item.id);
+  const enabledSourceIds = state.sources.filter((item) => Boolean(item.enabled)).map((item) => item.id);
+  const latestJob = Array.isArray(state.jobs) && state.jobs.length ? state.jobs[0] : null;
+
+  return {
+    exported_at: new Date().toISOString(),
+    app_version: state.version,
+    modes: {
+      generation_mode: state.generationMode,
+      audio_generation_mode: state.audioMode,
+    },
+    episode_settings: {
+      duration_target_minutes: state.settings.duration_target_minutes,
+      max_item_age_hours: state.settings.max_item_age_hours,
+      schedule_cron: state.settings.schedule_cron,
+      timezone: state.settings.timezone,
+      enabled_category_ids: enabledCategoryIds,
+      enabled_source_ids: enabledSourceIds,
+    },
+    deterministic_settings: {
+      global: state.deterministic.global,
+      categories: state.deterministic.categories,
+    },
+    catalog_snapshot: {
+      categories: state.categories,
+      sources: state.sources,
+      mappings: state.mappings,
+    },
+    latest_preview: state.lastPreview,
+    latest_script_generation: state.lastScriptResponse,
+    latest_audio_generation: state.lastAudioResponse,
+    ops_snapshot: {
+      budget_status: state.budgetStatus,
+      latest_job: latestJob,
+      jobs: state.jobs,
+    },
+  };
+}
+
+function renderDebugPayload() {
+  const output = document.getElementById("debug-json-output");
+  if (!output) {
+    return;
+  }
+  output.value = prettyJson(buildDebugPayload());
 }
 
 function normalizeAudioOrigin(value) {
@@ -569,6 +625,7 @@ async function reloadOps() {
   state.budgetStatus = budgetStatus;
   state.jobs = jobs;
   renderOps();
+  renderDebugPayload();
 }
 
 document.getElementById("category-form").addEventListener("submit", async (event) => {
@@ -984,6 +1041,8 @@ document.getElementById("generate-audio-run").addEventListener("click", async ()
       method: "POST",
       body: JSON.stringify({ script_text: scriptText }),
     });
+    state.lastAudioResponse = response;
+    renderDebugPayload();
     const audio = response.audio || {};
     const modeUsed = audio.mode_used || audio.audio_mode_used || response.mode_used || "local";
     const audioError = audio.error || response.error;
@@ -1022,6 +1081,8 @@ document.getElementById("latest-audio-run").addEventListener("click", async () =
       headers: { "Content-Type": "application/json" },
     });
     const body = await response.json();
+    state.lastAudioResponse = body;
+    renderDebugPayload();
 
     if (response.ok && body.status === "ok") {
       renderAudioArtifact(body, body.job_id || "audio");
@@ -1056,6 +1117,21 @@ document.getElementById("copy-script").addEventListener("click", async () => {
     await navigator.clipboard.writeText(text);
     setStatus("Script copie dans le presse-papiers");
   } catch (error) {
+    setStatus("Copie impossible: verifier les permissions du navigateur", true);
+  }
+});
+
+document.getElementById("debug-refresh").addEventListener("click", () => {
+  renderDebugPayload();
+  setStatus("JSON de debug rafraichi");
+});
+
+document.getElementById("debug-copy").addEventListener("click", async () => {
+  try {
+    const output = document.getElementById("debug-json-output");
+    await navigator.clipboard.writeText(output.value || "{}");
+    setStatus("JSON de debug copie dans le presse-papiers");
+  } catch (_error) {
     setStatus("Copie impossible: verifier les permissions du navigateur", true);
   }
 });
