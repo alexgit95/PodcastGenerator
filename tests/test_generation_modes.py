@@ -440,6 +440,9 @@ class GenerationModeApiTests(unittest.TestCase):
                 },
             )
             self.assertEqual(settings_response.status_code, 200)
+            settings_payload = settings_response.get_json()
+            self.assertEqual(settings_payload["extractive_rules"]["briefSecondsTarget"], 20)
+            self.assertTrue(settings_payload["extractive_rules"]["durationAlignmentEnabled"])
 
             response = self.client.post(
                 "/api/generate/script",

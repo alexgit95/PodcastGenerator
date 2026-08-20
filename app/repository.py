@@ -90,6 +90,17 @@ def _parse_json_field(raw_value: Any, default: Any) -> Any:
         return default
 
 
+def _deserialize_deterministic_global_row(row: Any) -> dict[str, Any] | None:
+    if not row:
+        return None
+    result = row_to_dict(row)
+    result["scoring_weights"] = _parse_json_field(result.pop("scoring_weights_json"), DETERMINISTIC_SCORING_WEIGHTS)
+    result["extractive_rules"] = _parse_json_field(result.pop("extractive_rules_json"), DETERMINISTIC_EXTRACTIVE_RULES)
+    result["trim_policy"] = _parse_json_field(result.pop("trim_policy_json"), DETERMINISTIC_TRIM_POLICY)
+    result["fallback_policy"] = _parse_json_field(result.pop("fallback_policy_json"), DETERMINISTIC_FALLBACK_POLICY)
+    return result
+
+
 def list_categories() -> list[dict[str, Any]]:
     with get_connection() as conn:
         rows = conn.execute(
@@ -551,14 +562,7 @@ def get_deterministic_global_settings(profile_id: str) -> dict[str, Any] | None:
             """,
             (profile_id,),
         ).fetchone()
-    if not row:
-        return None
-    result = row_to_dict(row)
-    result["scoring_weights"] = _parse_json_field(result.pop("scoring_weights_json"), DETERMINISTIC_SCORING_WEIGHTS)
-    result["extractive_rules"] = _parse_json_field(result.pop("extractive_rules_json"), DETERMINISTIC_EXTRACTIVE_RULES)
-    result["trim_policy"] = _parse_json_field(result.pop("trim_policy_json"), DETERMINISTIC_TRIM_POLICY)
-    result["fallback_policy"] = _parse_json_field(result.pop("fallback_policy_json"), DETERMINISTIC_FALLBACK_POLICY)
-    return result
+    return _deserialize_deterministic_global_row(row)
 
 
 def upsert_deterministic_global_settings(profile_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -616,7 +620,7 @@ def upsert_deterministic_global_settings(profile_id: str, payload: dict[str, Any
             """,
             (profile_id,),
         ).fetchone()
-    return row_to_dict(row) if row else None
+    return _deserialize_deterministic_global_row(row)
 
 
 def update_deterministic_global_settings(profile_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
